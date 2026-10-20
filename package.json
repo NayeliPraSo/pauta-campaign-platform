@@ -1,0 +1,11 @@
+{
+  "name": "pauta-campaign-platform",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend dev",
+    "check": "pnpm --filter backend check && pnpm --filter frontend exec astro check",
+    "build": "pnpm --filter backend build && pnpm --filter frontend build"
+  }
+}
