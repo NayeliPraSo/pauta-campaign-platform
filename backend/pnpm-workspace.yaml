@@ -1,0 +1,2 @@
+patchedDependencies:
+  '@veryfi/veryfi-sdk@1.5.2': patches/@veryfi__veryfi-sdk@1.5.2.patch

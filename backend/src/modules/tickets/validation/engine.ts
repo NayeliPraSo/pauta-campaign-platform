@@ -8,6 +8,9 @@ import type {
 
 import { validateMinimumAmount } from "./minimumAmount";
 import { validatePurchaseDateRange } from "./purchaseDateRange";
+import { validateAllowedMerchants } from "./allowedMerchants";
+import { validateRequiredProducts } from "./requiredProducts";
+import { validateDuplicateTicket } from "./duplicateTicket";
 
 export function validateTicket(
   ticket: TicketData,
@@ -39,6 +42,18 @@ export function validateTicket(
       case "purchase_date_range":
         result = validatePurchaseDateRange(rule, ticket);
         break;
+
+      case "allowed_merchants":
+        result = validateAllowedMerchants(rule, ticket);
+        break;
+        
+      case "required_products":
+        result = validateRequiredProducts(rule, ticket);
+        break;  
+
+      case "duplicate_ticket":
+        result = validateDuplicateTicket(rule, ticket);
+        break;  
 
       default:
         result = {

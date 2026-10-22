@@ -35,6 +35,12 @@ export interface TicketData {
   total_amount?: number | null;
   currency?: string | null;
   products?: TicketProduct[];
+  file_hash?: string | null;
+  duplicate_ticket_id?: string | null;
+  veryfi_duplicate_status?:
+    | "duplicate"
+    | "not_duplicate"
+    | "requires_review";
 }
 
 export interface RuleValidationResult {

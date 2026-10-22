@@ -1,0 +1,13 @@
+diff --git a/lib/types/Client.ts b/lib/types/Client.ts
+index 53ad36ac8933f062851415d33ad346b978aa5b3f..a3f803e4d206d6b6db82f6a12e557965e834a47d 100644
+--- a/lib/types/Client.ts
++++ b/lib/types/Client.ts
+@@ -1604,7 +1604,7 @@ export declare class Client {
+     /**
+      * Classify and possibly extract data from a document from a URL. https://docs.veryfi.com/api/classify-and-possibly-extract-data-from-a-document/
+      */
+-    public extract_document_from_url(file_url?: string, file_urls?: string[], document_types: string[], {...kwargs}?: VeryfiExtraArgs): Promise<JsonObject>;
++    public extract_document_from_url(file_url?: string, file_urls?: string[], document_types?: string[], {...kwargs}?: VeryfiExtraArgs): Promise<JsonObject>;
+ /**
+      * Get devices from blocklist. https://docs.veryfi.com/api/get-devices-from-blocklist/
+      */

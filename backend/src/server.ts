@@ -6,6 +6,7 @@ import cors from "cors";
 import helmet from "helmet";
 
 import { checkDatabaseConnection, pool } from "./database/connection.js";
+import { ticketsRouter } from "./modules/tickets/tickets.routes.js";
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use(
 );
 
 app.use(express.json());
+app.use("/api/tickets", ticketsRouter);
 
 app.get("/api/health", async (_req, res) => {
   try {

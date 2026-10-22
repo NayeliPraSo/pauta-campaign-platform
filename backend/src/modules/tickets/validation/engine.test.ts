@@ -134,10 +134,10 @@ test("Omite las reglas desactivadas", () => {
   assert.equal(result.results.length, 1);
 });
 
-test("Envía a revisión una regla no implementada", () => {
+test("Envía a revisión una regla desconocida", () => {
   const unimplementedRule: ValidationRule = {
     id: "3",
-    rule_type: "allowed_merchants",
+    rule_type: "unknown_rule" as ValidationRule["rule_type"],
     configuration: {
       merchants: ["Tienda Ejemplo"],
     },
@@ -208,3 +208,173 @@ test("No aprueba cuando failure_action es inválido", () => {
   assert.equal(result.status, "requires_review");
 });
 
+
+test("Aprueba un ticket de un comercio permitido", () => {
+  const merchantRule: ValidationRule = {
+    id: "3",
+    rule_type: "allowed_merchants",
+    configuration: {
+      merchants: ["Walmart", "Soriana", "Chedraui"],
+    },
+    failure_action: "rejected",
+    is_enabled: true,
+  };
+
+  const result = validateTicket(
+    {
+      merchant_name: "WALMART",
+    },
+    [merchantRule],
+  );
+
+  assert.equal(result.status, "approved");
+  assert.equal(result.results[0]?.passed, true);
+});
+
+test("Rechaza un ticket de un comercio no permitido", () => {
+  const merchantRule: ValidationRule = {
+    id: "3",
+    rule_type: "allowed_merchants",
+    configuration: {
+      merchants: ["Walmart", "Soriana", "Chedraui"],
+    },
+    failure_action: "rejected",
+    is_enabled: true,
+  };
+
+  const result = validateTicket(
+    {
+      merchant_name: "Oxxo",
+    },
+    [merchantRule],
+  );
+
+  assert.equal(result.status, "rejected");
+  assert.equal(result.results[0]?.passed, false);
+});
+
+test("Solicita revisión cuando no identifica el comercio", () => {
+  const merchantRule: ValidationRule = {
+    id: "3",
+    rule_type: "allowed_merchants",
+    configuration: {
+      merchants: ["Walmart", "Soriana", "Chedraui"],
+    },
+    failure_action: "rejected",
+    is_enabled: true,
+  };
+
+  const result = validateTicket({}, [merchantRule]);
+
+  assert.equal(result.status, "requires_review");
+  assert.equal(result.results[0]?.passed, null);
+});
+
+
+const requiredProductsRule: ValidationRule = {
+  id: "4",
+  rule_type: "required_products",
+  configuration: {
+    products: [
+      {
+        name: "Coca-Cola 600 ml",
+        aliases: ["Coca-Cola PET 600"],
+      },
+      {
+        name: "Sprite 600 ml",
+        aliases: ["Sprite PET 600"],
+      },
+    ],
+    minimum_quantity: 2,
+  },
+  failure_action: "rejected",
+  is_enabled: true,
+};
+
+test("Aprueba un ticket con suficientes productos participantes", () => {
+  const result = validateTicket(
+    {
+      products: [
+        { description: "Coca-Cola PET 600", quantity: 1 },
+        { description: "Sprite 600 ml", quantity: 1 },
+      ],
+    },
+    [requiredProductsRule],
+  );
+
+  assert.equal(result.status, "approved");
+  assert.equal(result.results[0]?.passed, true);
+});
+
+test("Rechaza un ticket con productos insuficientes", () => {
+  const result = validateTicket(
+    {
+      products: [
+        { description: "Coca-Cola 600 ml", quantity: 1 },
+      ],
+    },
+    [requiredProductsRule],
+  );
+
+  assert.equal(result.status, "rejected");
+  assert.equal(result.results[0]?.passed, false);
+});
+
+test("Solicita revisión cuando no se identifican productos", () => {
+  const result = validateTicket(
+    {},
+    [requiredProductsRule],
+  );
+
+  assert.equal(result.status, "requires_review");
+  assert.equal(result.results[0]?.passed, null);
+});
+
+
+const duplicateRule: ValidationRule = {
+  id: "5",
+  rule_type: "duplicate_ticket",
+  configuration: {},
+  failure_action: "rejected",
+  is_enabled: true,
+};
+
+const validFileHash = "a".repeat(64);
+
+test("Aprueba un ticket sin duplicados", () => {
+  const result = validateTicket(
+    {
+      file_hash: validFileHash,
+      duplicate_ticket_id: null,
+    },
+    [duplicateRule],
+  );
+
+  assert.equal(result.status, "approved");
+  assert.equal(result.results[0]?.passed, true);
+});
+
+test("Rechaza un ticket duplicado", () => {
+  const result = validateTicket(
+    {
+      file_hash: validFileHash,
+      duplicate_ticket_id: "15",
+    },
+    [duplicateRule],
+  );
+
+  assert.equal(result.status, "rejected");
+  assert.equal(result.results[0]?.passed, false);
+});
+
+test("No aprueba si falta comprobar duplicados", () => {
+  const result = validateTicket(
+    {
+      file_hash: validFileHash,
+    },
+    [duplicateRule],
+  );
+
+  assert.equal(result.status, "requires_review");
+  assert.equal(result.results[0]?.passed, null);
+});
