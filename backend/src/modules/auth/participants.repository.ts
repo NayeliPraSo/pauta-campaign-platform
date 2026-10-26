@@ -73,3 +73,30 @@ export async function createParticipant(
   return participant;
 }
 
+
+export interface PublicParticipant {
+  id: string;
+  full_name: string;
+  email: string;
+}
+
+export async function findParticipantById(
+  participantId: string,
+  client: Pool | PoolClient = pool,
+): Promise<PublicParticipant | null> {
+  const result = await client.query<PublicParticipant>(
+    `
+      SELECT
+        id::text AS id,
+        full_name,
+        email
+      FROM participants
+      WHERE id = $1
+        AND is_active = TRUE
+      LIMIT 1
+    `,
+    [participantId],
+  );
+
+  return result.rows[0] ?? null;
+}

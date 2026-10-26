@@ -7,6 +7,7 @@ import helmet from "helmet";
 
 import { checkDatabaseConnection, pool } from "./database/connection.js";
 import { ticketsRouter } from "./modules/tickets/tickets.routes.js";
+import { authRouter } from "./modules/auth/auth.routes.js";
 
 const app = express();
 
@@ -17,11 +18,13 @@ app.use(helmet());
 app.use(
   cors({
     origin: "http://localhost:4321",
+    credentials: true,
   })
 );
 
 app.use(express.json());
 app.use("/api/tickets", ticketsRouter);
+app.use("/api/auth", authRouter);
 
 app.get("/api/health", async (_req, res) => {
   try {
