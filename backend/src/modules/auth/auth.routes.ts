@@ -1,13 +1,37 @@
 
 import { Router } from "express";
 
-import { registerParticipantController } from "./auth.controller.js";
-import { loginParticipantController } from "./login.controller.js";
-import { getCurrentParticipantController } from "./me.controller.js";
+import {
+  registerParticipantController,
+} from "./auth.controller.js";
 
-import { registerRateLimit } from "./middlewares/registerRateLimit.middleware.js";
-import { loginRateLimit } from "./middlewares/loginRateLimit.middleware.js";
-import { requireAuth } from "./middlewares/requireAuth.middleware.js";
+import {
+  loginParticipantController,
+} from "./login.controller.js";
+
+import {
+  getCurrentParticipantController,
+} from "./me.controller.js";
+
+import {
+  logoutParticipantController,
+} from "./logout.controller.js";
+
+import {
+  registerRateLimit,
+} from "./middlewares/registerRateLimit.middleware.js";
+
+import {
+  loginRateLimit,
+} from "./middlewares/loginRateLimit.middleware.js";
+
+import {
+  requireAuth,
+} from "./middlewares/requireAuth.middleware.js";
+
+import {
+  requireTrustedOrigin,
+} from "./middlewares/requireTrustedOrigin.middleware.js";
 
 export const authRouter = Router();
 
@@ -32,5 +56,13 @@ authRouter.get(
   requireAuth,
   (req, res) => {
     void getCurrentParticipantController(req, res);
+  },
+);
+
+authRouter.post(
+  "/logout",
+  requireTrustedOrigin,
+  (req, res) => {
+    void logoutParticipantController(req, res);
   },
 );
