@@ -1,16 +1,61 @@
 ---
+import BaseLayout from "../layouts/BaseLayout.astro";
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<BaseLayout
+  title="Inicio"
+  description="Bienvenido a la plataforma de campañas promocionales."
+>
+  <main class="home">
+    <section class="welcome">
+      <span class="eyebrow">PAUTA CAMPAIGN PLATFORM</span>
+
+      <h1>Plataforma de campañas promocionales</h1>
+
+      <p>
+        Participa en nuestras campañas, descubre nuevas experiencias y consulta
+        tus resultados.
+      </p>
+
+      <p class="status">Estamos preparando la plataforma.</p>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .home {
+    display: grid;
+    min-height: 100vh;
+    padding: 24px;
+    place-items: center;
+  }
+
+  .welcome {
+    width: 100%;
+    max-width: 640px;
+    text-align: center;
+  }
+
+  .eyebrow {
+    color: #ea5b0c;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+  }
+
+  h1 {
+    margin: 20px 0;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    line-height: 1.1;
+  }
+
+  p {
+    line-height: 1.7;
+  }
+
+  .status {
+    margin-top: 32px;
+    color: #64748b;
+    font-size: 14px;
+  }
+</style>
