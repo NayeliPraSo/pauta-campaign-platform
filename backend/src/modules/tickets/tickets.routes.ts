@@ -1,13 +1,19 @@
 
 import { Router } from "express";
 
+import { requireAuth } from "../auth/middlewares/requireAuth.middleware.js";
+import { requireTrustedOrigin } from "../auth/middlewares/requireTrustedOrigin.middleware.js";
+
 import { uploadTicket } from "./middlewares/uploadTicket.middleware.js";
 import { validateUploadedTicket } from "./middlewares/validateUploadedTicket.middleware.js";
+import { handleTicketUploadError } from "./middlewares/handleTicketUploadError.middleware.js";
 
 export const ticketsRouter = Router();
 
 ticketsRouter.post(
   "/",
+  requireTrustedOrigin,
+  requireAuth,
   uploadTicket.single("file"),
   validateUploadedTicket,
   (req, res) => {
@@ -24,3 +30,5 @@ ticketsRouter.post(
     });
   },
 );
+
+ticketsRouter.use(handleTicketUploadError);
