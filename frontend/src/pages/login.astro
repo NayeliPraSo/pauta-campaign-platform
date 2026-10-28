@@ -1,0 +1,306 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Iniciar sesión"
+  description="Inicia sesión para participar en nuestras campañas promocionales."
+>
+  <main class="auth-page">
+    <p id="auth-loading" role="status" aria-live="polite">
+      Verificando tu sesión...
+    </p>
+
+    <section
+      id="auth-content"
+      class="auth-card"
+      aria-labelledby="login-title"
+      hidden
+    >
+      <div class="auth-header">
+        <span class="eyebrow">PAUTA CAMPAIGN PLATFORM</span>
+
+        <h1 id="login-title">Iniciar sesión</h1>
+
+        <p>
+          Ingresa tus datos para acceder a tu cuenta y consultar tus
+          participaciones.
+        </p>
+      </div>
+
+      <form id="login-form">
+        <div class="form-field">
+          <label for="email">Correo electrónico</label>
+
+          <input
+            type="email"
+            id="email"
+            name="email"
+            autocomplete="email"
+            maxlength="255"
+            required
+          />
+        </div>
+
+        <div class="form-field">
+          <label for="password">Contraseña</label>
+
+          <input
+            type="password"
+            id="password"
+            name="password"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+
+        <p
+          id="form-message"
+          class="form-message"
+          role="status"
+          aria-live="polite"
+        >
+        </p>
+
+        <button type="submit" class="submit-button"> Iniciar sesión </button>
+      </form>
+
+      <p class="auth-footer">
+        ¿Todavía no tienes una cuenta?
+        <a href="/registro">Regístrate</a>
+      </p>
+    </section>
+  </main>
+</BaseLayout>
+
+<script>
+  import { apiFetch, ApiError } from "../lib/api";
+  import type { CredencialesLogin, RespuestaLogin } from "../lib/auth.types";
+  import { redirectIfAuthenticated } from "../lib/redirectIfAuthenticated";
+
+  const form = document.querySelector<HTMLFormElement>("#login-form");
+
+  const message = document.querySelector<HTMLElement>("#form-message");
+
+  const submitButton = form?.querySelector<HTMLButtonElement>(
+    'button[type="submit"]',
+  );
+
+  const authLoading = document.querySelector<HTMLElement>("#auth-loading");
+
+  const authContent = document.querySelector<HTMLElement>("#auth-content");
+
+  async function inicializarLogin(): Promise<void> {
+    try {
+      const redirected = await redirectIfAuthenticated();
+
+      if (redirected) {
+        return;
+      }
+    } catch {
+      // Si falla la verificación, mostramos el formulario.
+    }
+
+    if (authLoading) {
+      authLoading.hidden = true;
+    }
+
+    if (authContent) {
+      authContent.hidden = false;
+    }
+  }
+
+  void inicializarLogin();
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!form.reportValidity() || !message || !submitButton) {
+      return;
+    }
+
+    const email = form.elements.namedItem("email") as HTMLInputElement | null;
+
+    const password = form.elements.namedItem(
+      "password",
+    ) as HTMLInputElement | null;
+
+    if (!email || !password) {
+      return;
+    }
+
+    const credentials: CredencialesLogin = {
+      email: email.value.trim().toLowerCase(),
+      password: password.value,
+    };
+
+    message.textContent = "";
+    message.removeAttribute("data-status");
+
+    submitButton.disabled = true;
+    submitButton.textContent = "Iniciando sesión...";
+
+    try {
+      const response = await apiFetch<RespuestaLogin, CredencialesLogin>(
+        "/api/auth/login",
+        {
+          method: "POST",
+          body: credentials,
+        },
+      );
+
+      message.dataset.status = "success";
+      message.textContent = response.message ?? "Inicio de sesión exitoso.";
+
+      password.value = "";
+
+      // Redirigimos al dashboard una vez que el backend
+      // confirmó el inicio de sesión.
+      window.location.assign("/dashboard");
+    } catch (error) {
+      message.dataset.status = "error";
+
+      if (error instanceof ApiError) {
+        message.textContent = error.message;
+      } else {
+        message.textContent =
+          "No fue posible conectar con el servidor. Inténtalo nuevamente.";
+      }
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = "Iniciar sesión";
+    }
+  });
+</script>
+
+<style>
+  .auth-page {
+    display: grid;
+    min-height: 100vh;
+    padding: 32px 20px;
+    place-items: center;
+  }
+
+  .auth-card {
+    width: 100%;
+    max-width: 480px;
+    padding: clamp(24px, 5vw, 40px);
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 12px 40px rgb(15 23 42 / 5%);
+  }
+
+  .auth-header {
+    margin-bottom: 32px;
+  }
+
+  .eyebrow {
+    color: #ea5b0c;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+  }
+
+  h1 {
+    margin: 16px 0 12px;
+    font-size: clamp(1.8rem, 5vw, 2.4rem);
+    line-height: 1.15;
+  }
+
+  .auth-header p,
+  .auth-footer {
+    color: #64748b;
+    line-height: 1.6;
+  }
+
+  .auth-card[hidden],
+  #auth-loading[hidden] {
+    display: none;
+  }
+
+  #auth-loading {
+    color: #64748b;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .form-field label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .form-field input {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    color: #1f2937;
+  }
+
+  .form-field input:focus-visible {
+    outline: 2px solid #ea5b0c;
+    outline-offset: 2px;
+  }
+
+  .form-message {
+    min-height: 20px;
+    margin: 20px 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .form-message[data-status="success"] {
+    color: #15803d;
+  }
+
+  .form-message[data-status="error"] {
+    color: #b91c1c;
+  }
+
+  .submit-button {
+    width: 100%;
+    min-height: 46px;
+    padding: 12px 16px;
+    border: 0;
+    border-radius: 8px;
+    background: #ea5b0c;
+    color: #fff;
+    font-weight: 700;
+    transition: background 0.2s ease;
+  }
+
+  .submit-button:hover {
+    background: #c94c08;
+  }
+
+  .submit-button:focus-visible {
+    outline: 2px solid #1f2937;
+    outline-offset: 3px;
+  }
+
+  .auth-footer {
+    margin: 24px 0 0;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .auth-footer a {
+    color: #ea5b0c;
+    font-weight: 700;
+  }
+
+  .submit-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+</style>

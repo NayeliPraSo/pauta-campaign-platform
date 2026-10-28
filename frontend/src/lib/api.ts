@@ -10,13 +10,14 @@ export class ApiError extends Error {
   }
 }
 
-interface ApiOptions extends Omit<RequestInit, "body"> {
-  body?: BodyInit | Record<string, unknown> | null;
+interface ApiOptions<TBody = unknown>
+  extends Omit<RequestInit, "body"> {
+  body?: TBody | BodyInit | null;
 }
 
-export async function apiFetch<T>(
+export async function apiFetch<T, TBody = unknown>(
   endpoint: string,
-  options: ApiOptions = {},
+  options: ApiOptions<TBody> = {},
 ): Promise<T> {
   const { body, headers, ...rest } = options;
 

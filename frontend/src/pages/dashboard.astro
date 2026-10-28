@@ -1,0 +1,336 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Mi cuenta"
+  description="Consulta tu cuenta y administra tu sesión."
+>
+  <main class="dashboard">
+    <!-- Estado inicial mientras se verifica la sesión -->
+    <p
+      id="session-loading"
+      class="session-loading"
+      role="status"
+      aria-live="polite"
+    >
+      Verificando tu sesión...
+    </p>
+
+    <!-- Contenido visible únicamente con sesión válida -->
+    <section
+      id="dashboard-content"
+      class="dashboard-card"
+      aria-labelledby="dashboard-title"
+      hidden
+    >
+      <span class="eyebrow">PAUTA CAMPAIGN PLATFORM</span>
+
+      <h1 id="dashboard-title">Mi cuenta</h1>
+
+      <p
+        id="session-status"
+        class="session-status"
+        role="status"
+        aria-live="polite"
+      >
+        Sesión activa.
+      </p>
+
+      <div class="participant-info">
+        <h2>Información del participante</h2>
+
+        <dl>
+          <dt>Nombre</dt>
+          <dd id="participant-name"></dd>
+
+          <dt>Correo electrónico</dt>
+          <dd id="participant-email"></dd>
+        </dl>
+
+        <button id="logout-button" type="button" class="logout-button">
+          Cerrar sesión
+        </button>
+      </div>
+    </section>
+
+    <!-- Mensaje cuando ocurre un error de conexión -->
+    <section
+      id="session-error"
+      class="dashboard-card"
+      aria-labelledby="error-title"
+      hidden
+    >
+      <h1 id="error-title">No pudimos verificar tu sesión</h1>
+
+      <p>
+        Ocurrió un problema al comunicarnos con el servidor. Inténtalo
+        nuevamente.
+      </p>
+
+      <button id="retry-button" type="button" class="retry-button">
+        Reintentar
+      </button>
+    </section>
+  </main>
+</BaseLayout>
+
+<script>
+  import { ApiError } from "../lib/api";
+  import { obtenerSesion, cerrarSesion } from "../lib/auth";
+
+  const sessionLoading =
+    document.querySelector<HTMLElement>("#session-loading");
+
+  const dashboardContent =
+    document.querySelector<HTMLElement>("#dashboard-content");
+
+  const sessionError = document.querySelector<HTMLElement>("#session-error");
+
+  const sessionStatus = document.querySelector<HTMLElement>("#session-status");
+
+  const participantName =
+    document.querySelector<HTMLElement>("#participant-name");
+
+  const participantEmail =
+    document.querySelector<HTMLElement>("#participant-email");
+
+  const logoutButton =
+    document.querySelector<HTMLButtonElement>("#logout-button");
+
+  const retryButton =
+    document.querySelector<HTMLButtonElement>("#retry-button");
+
+  /**
+   * Controla qué contenido se muestra
+   * durante la verificación de sesión.
+   */
+  function mostrarCargando(): void {
+    if (sessionLoading) {
+      sessionLoading.hidden = false;
+    }
+
+    if (dashboardContent) {
+      dashboardContent.hidden = true;
+    }
+
+    if (sessionError) {
+      sessionError.hidden = true;
+    }
+  }
+
+  /**
+   * Muestra el dashboard únicamente cuando
+   * el backend confirma una sesión válida.
+   */
+  function mostrarDashboard(): void {
+    if (sessionLoading) {
+      sessionLoading.hidden = true;
+    }
+
+    if (dashboardContent) {
+      dashboardContent.hidden = false;
+    }
+
+    if (sessionError) {
+      sessionError.hidden = true;
+    }
+  }
+
+  /**
+   * Muestra un error de comunicación.
+   */
+  function mostrarError(): void {
+    if (sessionLoading) {
+      sessionLoading.hidden = true;
+    }
+
+    if (dashboardContent) {
+      dashboardContent.hidden = true;
+    }
+
+    if (sessionError) {
+      sessionError.hidden = false;
+    }
+  }
+
+  /**
+   * Consulta la sesión actual.
+   *
+   * - Sesión válida: muestra el dashboard.
+   * - HTTP 401: redirige a /login.
+   * - Otros errores: permite reintentar.
+   */
+  async function verificarSesion(): Promise<void> {
+    mostrarCargando();
+
+    try {
+      const response = await obtenerSesion();
+
+      if (participantName) {
+        participantName.textContent = response.data.participant.full_name;
+      }
+
+      if (participantEmail) {
+        participantEmail.textContent = response.data.participant.email;
+      }
+
+      if (sessionStatus) {
+        sessionStatus.textContent = "Sesión activa.";
+      }
+
+      mostrarDashboard();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        window.location.replace("/login");
+        return;
+      }
+
+      mostrarError();
+    }
+  }
+
+  /**
+   * Cierra la sesión y redirige al login
+   * cuando el backend confirma el cierre.
+   */
+  logoutButton?.addEventListener("click", async () => {
+    if (!logoutButton) {
+      return;
+    }
+
+    logoutButton.disabled = true;
+    logoutButton.textContent = "Cerrando sesión...";
+
+    try {
+      await cerrarSesion();
+
+      // Ocultamos los datos antes de redirigir.
+      mostrarCargando();
+
+      if (sessionLoading) {
+        sessionLoading.textContent = "Sesión cerrada. Redirigiendo...";
+      }
+
+      window.location.replace("/login");
+    } catch {
+      if (sessionStatus) {
+        sessionStatus.textContent =
+          "No fue posible cerrar la sesión. Inténtalo nuevamente.";
+      }
+
+      logoutButton.disabled = false;
+      logoutButton.textContent = "Cerrar sesión";
+    }
+  });
+
+  /**
+   * Permite volver a consultar la sesión
+   * cuando ocurre un error de comunicación.
+   */
+  retryButton?.addEventListener("click", () => {
+    void verificarSesion();
+  });
+
+  // Verificación inicial.
+  void verificarSesion();
+</script>
+
+<style>
+  .dashboard {
+    display: grid;
+    min-height: 100vh;
+    padding: 24px;
+    place-items: center;
+  }
+
+  .dashboard-card {
+    width: 100%;
+    max-width: 560px;
+    padding: clamp(24px, 5vw, 40px);
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 12px 40px rgb(15 23 42 / 5%);
+  }
+
+  /* Evita mostrar contenido oculto */
+  .dashboard-card[hidden],
+  .session-loading[hidden] {
+    display: none;
+  }
+
+  .session-loading {
+    color: #64748b;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .eyebrow {
+    color: #ea5b0c;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+  }
+
+  h1 {
+    margin: 16px 0;
+    font-size: clamp(2rem, 5vw, 2.5rem);
+  }
+
+  .session-status {
+    color: #15803d;
+    line-height: 1.6;
+  }
+
+  .participant-info {
+    margin-top: 28px;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  dl {
+    margin: 24px 0;
+  }
+
+  dt {
+    margin-top: 16px;
+    color: #64748b;
+    font-size: 13px;
+  }
+
+  dd {
+    margin: 6px 0 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .logout-button,
+  .retry-button {
+    width: 100%;
+    min-height: 46px;
+    padding: 12px 16px;
+    border: 0;
+    border-radius: 8px;
+    background: #ea5b0c;
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .logout-button:hover,
+  .retry-button:hover {
+    background: #c94c08;
+  }
+
+  .logout-button:disabled,
+  .retry-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+
+  .dashboard-card p {
+    line-height: 1.6;
+  }
+</style>
