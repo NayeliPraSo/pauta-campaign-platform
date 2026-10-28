@@ -1,0 +1,94 @@
+---
+import {
+  getParticipantNavigation,
+  type ParticipantCampaignConfig,
+} from "../../config/participantNavigation";
+
+interface Props {
+  config: ParticipantCampaignConfig;
+  currentPath?: string;
+}
+
+const { config, currentPath = Astro.url.pathname } = Astro.props;
+
+// Rutas que ya existen en el frontend.
+const availableRoutes = new Set(["/dashboard"]);
+
+// Obtener únicamente los módulos habilitados.
+const navigation = getParticipantNavigation(config).filter((item) =>
+  availableRoutes.has(item.href),
+);
+
+// Normalizar la ruta actual para identificar
+// correctamente el enlace seleccionado.
+const normalizedPath = currentPath.replace(/\/+$/, "") || "/";
+---
+
+<nav class="participant-navigation" aria-label="Navegación del participante">
+  {
+    navigation.map((item) => {
+      const isActive = normalizedPath === item.href;
+
+      return (
+        <a
+          href={item.href}
+          class:list={["nav-link", { "is-active": isActive }]}
+          aria-current={isActive ? "page" : undefined}
+        >
+          {item.label}
+        </a>
+      );
+    })
+  }
+</nav>
+
+<style>
+  .participant-navigation {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .nav-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    color: #475569;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+
+  .nav-link:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+  }
+
+  .nav-link.is-active {
+    background: #fff7ed;
+    color: #ea5b0c;
+  }
+
+  .nav-link:focus-visible {
+    outline: 2px solid #ea5b0c;
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 480px) {
+    .participant-navigation {
+      gap: 4px;
+    }
+
+    .nav-link {
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+  }
+</style>

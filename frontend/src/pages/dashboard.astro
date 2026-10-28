@@ -1,12 +1,13 @@
 ---
-import BaseLayout from "../layouts/BaseLayout.astro";
+import ParticipantLayout from "../layouts/ParticipantLayout.astro";
+import ParticipantProfile from "../components/participant/ParticipantProfile.astro";
 ---
 
-<BaseLayout
+<ParticipantLayout
   title="Mi cuenta"
   description="Consulta tu cuenta y administra tu sesión."
 >
-  <main class="dashboard">
+  <div class="dashboard">
     <!-- Estado inicial mientras se verifica la sesión -->
     <p
       id="session-loading"
@@ -37,21 +38,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         Sesión activa.
       </p>
 
-      <div class="participant-info">
-        <h2>Información del participante</h2>
-
-        <dl>
-          <dt>Nombre</dt>
-          <dd id="participant-name"></dd>
-
-          <dt>Correo electrónico</dt>
-          <dd id="participant-email"></dd>
-        </dl>
-
-        <button id="logout-button" type="button" class="logout-button">
-          Cerrar sesión
-        </button>
-      </div>
+      <ParticipantProfile />
     </section>
 
     <!-- Mensaje cuando ocurre un error de conexión -->
@@ -72,8 +59,8 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         Reintentar
       </button>
     </section>
-  </main>
-</BaseLayout>
+  </div>
+</ParticipantLayout>
 
 <script>
   import { ApiError } from "../lib/api";
@@ -282,32 +269,6 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     color: #15803d;
     line-height: 1.6;
   }
-
-  .participant-info {
-    margin-top: 28px;
-  }
-
-  h2 {
-    font-size: 18px;
-  }
-
-  dl {
-    margin: 24px 0;
-  }
-
-  dt {
-    margin-top: 16px;
-    color: #64748b;
-    font-size: 13px;
-  }
-
-  dd {
-    margin: 6px 0 0;
-    font-weight: 600;
-    overflow-wrap: anywhere;
-  }
-
-  .logout-button,
   .retry-button {
     width: 100%;
     min-height: 46px;
@@ -319,12 +280,10 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     font-weight: 700;
   }
 
-  .logout-button:hover,
   .retry-button:hover {
     background: #c94c08;
   }
 
-  .logout-button:disabled,
   .retry-button:disabled {
     cursor: not-allowed;
     opacity: 0.65;

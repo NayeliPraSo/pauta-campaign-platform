@@ -1,0 +1,116 @@
+---
+import ParticipantNavigation from "./ParticipantNavigation.astro";
+import type { ParticipantCampaignConfig } from "../../config/participantNavigation";
+
+interface Props {
+  config: ParticipantCampaignConfig;
+  currentPath?: string;
+}
+
+const { config, currentPath } = Astro.props;
+---
+
+<header class="participant-header">
+  <div class="header-container">
+    <a href="/dashboard" class="brand" aria-label="Ir a mi cuenta">
+      <span class="brand-mark">P</span>
+
+      <span class="brand-name">
+        PAUTA
+        <small>CAMPAIGN PLATFORM</small>
+      </span>
+    </a>
+
+    <ParticipantNavigation config={config} currentPath={currentPath} />
+  </div>
+</header>
+
+<style>
+  .participant-header {
+    width: 100%;
+    border-bottom: 1px solid #e2e8f0;
+    background: #fff;
+  }
+
+  .header-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    width: min(100% - 40px, 1200px);
+    min-height: 76px;
+    margin: 0 auto;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    color: #1e293b;
+    text-decoration: none;
+  }
+
+  .brand-mark {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 12px;
+    background: #ea5b0c;
+    color: #fff;
+    font-size: 24px;
+    font-weight: 800;
+  }
+
+  .brand-name {
+    display: flex;
+    flex-direction: column;
+    font-size: 19px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: 0.04em;
+  }
+
+  .brand-name small {
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+  }
+
+  .nav-link {
+    padding: 10px 14px;
+    border-radius: 8px;
+    color: #475569;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .nav-link:hover,
+  .nav-link[aria-current="page"] {
+    background: #fff7ed;
+    color: #ea5b0c;
+  }
+
+  @media (max-width: 480px) {
+    .header-container {
+      width: min(100% - 32px, 1200px);
+      min-height: 68px;
+    }
+
+    .brand-name {
+      font-size: 16px;
+    }
+
+    .brand-name small {
+      font-size: 8px;
+    }
+
+    .nav-link {
+      padding: 8px;
+      font-size: 13px;
+    }
+  }
+</style>

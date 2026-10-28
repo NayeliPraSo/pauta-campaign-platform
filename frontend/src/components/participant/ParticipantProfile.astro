@@ -1,0 +1,61 @@
+<section class="participant-info" aria-labelledby="participant-info-title">
+  <h2 id="participant-info-title">Información del participante</h2>
+
+  <dl>
+    <dt>Nombre</dt>
+    <dd id="participant-name"></dd>
+
+    <dt>Correo electrónico</dt>
+    <dd id="participant-email"></dd>
+  </dl>
+
+  <button id="logout-button" type="button" class="logout-button">
+    Cerrar sesión
+  </button>
+</section>
+
+<style>
+  .participant-info {
+    margin-top: 28px;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  dl {
+    margin: 24px 0;
+  }
+
+  dt {
+    margin-top: 16px;
+    color: #64748b;
+    font-size: 13px;
+  }
+
+  dd {
+    margin: 6px 0 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .logout-button {
+    width: 100%;
+    min-height: 46px;
+    padding: 12px 16px;
+    border: 0;
+    border-radius: 8px;
+    background: #ea5b0c;
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .logout-button:hover {
+    background: #c94c08;
+  }
+
+  .logout-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+</style>

@@ -1,0 +1,48 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+import ParticipantHeader from "../components/participant/ParticipantHeader.astro";
+import type { ParticipantCampaignConfig } from "../config/participantNavigation";
+import { campaignConfig as defaultCampaignConfig } from "../config/campaign";
+
+interface Props {
+  title: string;
+  description?: string;
+  campaignConfig?: ParticipantCampaignConfig;
+}
+
+const {
+  title,
+  description = "Área de participantes de Pauta Campaign Platform.",
+  campaignConfig = defaultCampaignConfig.participant,
+} = Astro.props;
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="participant-layout">
+    <ParticipantHeader
+      config={campaignConfig}
+      currentPath={Astro.url.pathname}
+    />
+
+    <main class="participant-main">
+      <slot />
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  .participant-layout {
+    min-height: 100vh;
+    background: #f8fafc;
+  }
+
+  .participant-main {
+    min-height: calc(100vh - 76px);
+  }
+
+  @media (max-width: 480px) {
+    .participant-main {
+      min-height: calc(100vh - 68px);
+    }
+  }
+</style>
