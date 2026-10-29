@@ -1,6 +1,6 @@
 # Pauta Campaign Platform
 
-Plataforma reutilizable para campañas promocionales de **Pauta Creativa**. Permite lanzar promociones en las que los participantes se registran, suben comprobantes de compra, juegan una trivia y acumulan puntos en un ranking, sin desarrollar cada campaña desde cero.
+Plataforma modular reutilizable para campañas promocionales. Su objetivo es facilitar el desarrollo de campañas con registro de participantes, carga y validación de comprobantes, minijuegos, puntos, rankings y administración, mediante módulos configurables y reutilizables.
 
 > **Estado:** MVP en desarrollo (etapa inicial, participación web).
 
@@ -10,7 +10,11 @@ Cada campaña cuenta con su propio despliegue, dominio y base de datos, pero com
 
 No es una plataforma multi-tenant ni un constructor visual de campañas.
 
-## Alcance del MVP
+## Alcance previsto del MVP
+
+Las funcionalidades descritas a continuación forman parte del alcance
+planificado. Su inclusión en esta sección no implica que ya estén
+implementadas.
 
 **Incluye**
 
@@ -55,9 +59,12 @@ La lógica de negocio vive en el backend, dividida en módulos pequeños: `auth`
 ## Estructura del repositorio
 
 ```text
-├── frontend/   # Astro: sitio de la campaña y panel de administración
-├── backend/    # API Express + TypeScript
-└── docs        # Archivos .md de contexto, reglas y decisiones (raíz)
+├── frontend/    # Aplicación Astro
+├── backend/     # API Express y PostgreSQL
+├── README.md    # Documentación principal
+├── AGENTS.md    # Instrucciones para asistentes
+├── CLAUDE.md    # Instrucciones para Claude Code
+└── *.md         # Arquitectura, decisiones y planificación
 ```
 
 ## Configuración por campaña
@@ -116,3 +123,25 @@ Al cerrar una regla de negocio, actualizar `DECISIONS.md` y sincronizar los dem�
 ## Licencia
 
 Por definir.
+
+## Estado actual de implementación
+
+**Funcionalidades implementadas y verificadas:**
+
+- Registro e inicio de sesión de participantes.
+- Autenticación mediante sesiones.
+- Carga de comprobantes JPG, PNG y PDF, con límite de 10 MB.
+- Validación básica del contenido de los archivos.
+- Almacenamiento privado de comprobantes.
+- Detección y rechazo de archivos duplicados.
+- Registro de tickets en PostgreSQL.
+- Consulta del historial de comprobantes por participante.
+- Visualización del estado de cada comprobante.
+
+**Funcionalidades pendientes:**
+
+- Procesamiento OCR mediante Veryfi.
+- Validaciones comerciales de los comprobantes.
+- Revisión administrativa y aprobación o rechazo de tickets.
+- Mecánicas de juego, puntos y rankings.
+- Panel administrativo y reportes.
