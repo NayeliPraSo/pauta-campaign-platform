@@ -25,6 +25,6 @@ export const campaignConfig: CampaignConfig = {
   id: "pauta-demo",
   name: "Pauta Campaign Platform",
   participant: {
-    enabledModules: [],
+    enabledModules: ["tickets"],
   },
 };

@@ -12,7 +12,7 @@ interface Props {
 const { config, currentPath = Astro.url.pathname } = Astro.props;
 
 // Rutas que ya existen en el frontend.
-const availableRoutes = new Set(["/dashboard"]);
+const availableRoutes = new Set(["/dashboard", "/tickets"]);
 
 // Obtener únicamente los módulos habilitados.
 const navigation = getParticipantNavigation(config).filter((item) =>

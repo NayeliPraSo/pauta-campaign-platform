@@ -12,41 +12,78 @@ import {
 
 import { LocalStorageService } from "./localStorage.service.js";
 
-test("Guarda un archivo con un nombre generado y permite eliminarlo", async () => {
-  const directory = await mkdtemp(
-    path.join(tmpdir(), "pauta-tickets-"),
-  );
+/**
+ * Crea un buffer con la firma de un PNG.
+ *
+ * Es suficiente para probar la detección
+ * de formato implementada actualmente.
+ * No representa una imagen completa.
+ */
+function createPngBuffer(content = "Archivo de prueba"): Buffer {
+  const signature = Buffer.from([
+    137, 80, 78, 71, 13, 10, 26, 10,
+  ]);
 
-  try {
-    const storage = new LocalStorageService(directory);
-    const content = Buffer.from("Archivo de prueba");
+  return Buffer.concat([
+    signature,
+    Buffer.from(content),
+  ]);
+}
 
-    const stored = await storage.save(content, "ticket.png");
+/**
+ * Crea un buffer con la firma de un JPEG.
+ *
+ * No representa una imagen completa.
+ */
+function createJpegBuffer(): Buffer {
+  return Buffer.from([
+    0xff, 0xd8, 0xff, 0xe0,
+    0x00, 0x10, 0x4a, 0x46,
+    0x49, 0x46, 0x00, 0x01,
+  ]);
+}
 
-    assert.match(
-      stored.key,
-      /^[0-9a-f-]{36}\.png$/,
+test(
+  "Guarda un archivo con un nombre generado y permite eliminarlo",
+  async () => {
+    const directory = await mkdtemp(
+      path.join(tmpdir(), "pauta-tickets-"),
     );
 
-    const savedContent = await readFile(
-      path.join(directory, stored.key),
-    );
+    try {
+      const storage = new LocalStorageService(directory);
+      const content = createPngBuffer();
 
-    assert.deepEqual(savedContent, content);
+      const stored = await storage.save(
+        content,
+        "ticket.png",
+      );
 
-    await storage.delete(stored.key);
+      assert.match(
+        stored.key,
+        /^[0-9a-f-]{36}\.png$/,
+      );
 
-    await assert.rejects(
-      stat(path.join(directory, stored.key)),
-      { code: "ENOENT" },
-    );
-  } finally {
-    await rm(directory, {
-      recursive: true,
-      force: true,
-    });
-  }
-});
+      const savedContent = await readFile(
+        path.join(directory, stored.key),
+      );
+
+      assert.deepEqual(savedContent, content);
+
+      await storage.delete(stored.key);
+
+      await assert.rejects(
+        stat(path.join(directory, stored.key)),
+        { code: "ENOENT" },
+      );
+    } finally {
+      await rm(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
 
 test("Rechaza archivos vacíos", async () => {
   const storage = new LocalStorageService();
@@ -73,7 +110,10 @@ test("Rechaza extensiones no permitidas", async () => {
   const storage = new LocalStorageService();
 
   await assert.rejects(
-    storage.save(Buffer.from("prueba"), "ticket.exe"),
+    storage.save(
+      createPngBuffer(),
+      "ticket.exe",
+    ),
     /extensión del archivo no está permitida/,
   );
 });
@@ -87,29 +127,94 @@ test("Rechaza referencias de archivo inválidas", async () => {
   );
 });
 
-test("Genera nombres diferentes para archivos distintos", async () => {
-  const directory = await mkdtemp(
-    path.join(tmpdir(), "pauta-tickets-"),
-  );
-
-  try {
-    const storage = new LocalStorageService(directory);
-
-    const first = await storage.save(
-      Buffer.from("Archivo 1"),
-      "ticket.png",
+test(
+  "Genera nombres diferentes para archivos distintos",
+  async () => {
+    const directory = await mkdtemp(
+      path.join(tmpdir(), "pauta-tickets-"),
     );
 
-    const second = await storage.save(
-      Buffer.from("Archivo 2"),
-      "ticket.png",
+    try {
+      const storage = new LocalStorageService(directory);
+
+      const first = await storage.save(
+        createPngBuffer("Archivo 1"),
+        "ticket.png",
+      );
+
+      const second = await storage.save(
+        createPngBuffer("Archivo 2"),
+        "ticket.png",
+      );
+
+      assert.notEqual(first.key, second.key);
+
+      assert.match(
+        first.key,
+        /^[0-9a-f-]{36}\.png$/,
+      );
+
+      assert.match(
+        second.key,
+        /^[0-9a-f-]{36}\.png$/,
+      );
+    } finally {
+      await rm(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  "Rechaza archivos cuya extensión no coincide con el contenido",
+  async () => {
+    const storage = new LocalStorageService();
+
+    await assert.rejects(
+      storage.save(
+        createPngBuffer(),
+        "ticket.jpg",
+      ),
+      /tipo de archivo declarado no coincide con su contenido/,
+    );
+  },
+);
+
+test(
+  "Normaliza los archivos JPEG a extensión .jpg",
+  async () => {
+    const directory = await mkdtemp(
+      path.join(tmpdir(), "pauta-tickets-"),
     );
 
-    assert.notEqual(first.key, second.key);
-  } finally {
-    await rm(directory, {
-      recursive: true,
-      force: true,
-    });
-  }
-});
+    try {
+      const storage = new LocalStorageService(directory);
+
+      const stored = await storage.save(
+        createJpegBuffer(),
+        "ticket.jpeg",
+      );
+
+      assert.match(
+        stored.key,
+        /^[0-9a-f-]{36}\.jpg$/,
+      );
+
+      const savedContent = await readFile(
+        path.join(directory, stored.key),
+      );
+
+      assert.deepEqual(
+        savedContent,
+        createJpegBuffer(),
+      );
+    } finally {
+      await rm(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);

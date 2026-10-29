@@ -4,8 +4,10 @@ import { test } from "node:test";
 
 import {
   createTicket,
+  listParticipantTickets,
   type CreateTicketInput,
   type CreateTicketQuery,
+  type ListParticipantTicketsQuery,
 } from "./tickets.repository.js";
 
 const validInput: CreateTicketInput = {
@@ -132,3 +134,104 @@ test("Propaga errores de PostgreSQL", async () => {
     },
   );
 });
+
+
+test(
+  "Consulta únicamente los tickets del participante indicado",
+  async () => {
+    let capturedSql = "";
+    let capturedValues: readonly string[] = [];
+
+    const mockQuery: ListParticipantTicketsQuery = async (
+      sql,
+      values,
+    ) => {
+      capturedSql = sql;
+      capturedValues = values;
+
+      return {
+        rows: [
+          {
+            id: "7",
+            original_filename: "Ticket de prueba.png",
+            mime_type: "image/png",
+            status: "pending",
+            created_at: createdAt,
+          },
+        ],
+      };
+    };
+
+    const tickets = await listParticipantTickets(
+      "19",
+      mockQuery,
+    );
+
+    assert.match(
+      capturedSql,
+      /WHERE participant_id = \$1/,
+    );
+
+    assert.match(
+      capturedSql,
+      /ORDER BY created_at DESC, id DESC/,
+    );
+
+    assert.deepEqual(capturedValues, ["19"]);
+
+    assert.deepEqual(tickets, [
+      {
+        id: "7",
+        originalFilename: "Ticket de prueba.png",
+        mimeType: "image/png",
+        status: "pending",
+        createdAt,
+      },
+    ]);
+  },
+);
+
+test(
+  "Devuelve una lista vacía cuando el participante no tiene tickets",
+  async () => {
+    const mockQuery: ListParticipantTicketsQuery =
+      async () => ({
+        rows: [],
+      });
+
+    const tickets = await listParticipantTickets(
+      "19",
+      mockQuery,
+    );
+
+    assert.deepEqual(tickets, []);
+  },
+);
+
+test(
+  "Conserva identificadores BIGINT en el historial",
+  async () => {
+    const mockQuery: ListParticipantTicketsQuery =
+      async () => ({
+        rows: [
+          {
+            id: "9007199254740993",
+            original_filename: "ticket.pdf",
+            mime_type: "application/pdf",
+            status: "approved",
+            created_at: createdAt,
+          },
+        ],
+      });
+
+    const tickets = await listParticipantTickets(
+      "19",
+      mockQuery,
+    );
+
+    assert.equal(
+      tickets[0]?.id,
+      "9007199254740993",
+    );
+  },
+);

@@ -8,6 +8,8 @@ import type {
   StoredFile,
 } from "./storage.types.js";
 
+import { validateTicketFile } from "../../modules/tickets/validation/validateTicketFile.js";
+
 const DEFAULT_STORAGE_ROOT = path.resolve(
   process.cwd(),
   "storage",
@@ -16,15 +18,11 @@ const DEFAULT_STORAGE_ROOT = path.resolve(
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-function getExtension(filename: string): string {
-  const extension = path.extname(filename).toLowerCase();
-
-  if (![".pdf", ".jpg", ".jpeg", ".png"].includes(extension)) {
-    throw new Error("La extensión del archivo no está permitida.");
-  }
-
-  return extension === ".jpeg" ? ".jpg" : extension;
-}
+const MIME_EXTENSIONS = {
+  "application/pdf": ".pdf",
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+} as const;
 
 export class LocalStorageService implements StorageService {
   constructor(
@@ -42,8 +40,45 @@ export class LocalStorageService implements StorageService {
       throw new Error("El tamaño del archivo es inválido.");
     }
 
-    const extension = getExtension(originalFilename);
-    const filename = `${randomUUID()}${extension}`;
+    // Determinamos el MIME esperado por la extensión.
+    const extension = path.extname(
+      originalFilename,
+    ).toLowerCase();
+
+    const declaredMimeType =
+      extension === ".pdf"
+        ? "application/pdf"
+        : extension === ".jpg" || extension === ".jpeg"
+          ? "image/jpeg"
+          : extension === ".png"
+            ? "image/png"
+            : null;
+
+    if (!declaredMimeType) {
+      throw new Error(
+        "La extensión del archivo no está permitida.",
+      );
+    }
+
+    // Verificamos que el contenido coincida
+    // con el tipo esperado.
+    const validation = validateTicketFile(
+      fileBuffer,
+      declaredMimeType,
+    );
+
+    if (!validation.valid || !validation.detectedMimeType) {
+      throw new Error(
+        validation.reason ??
+          "El contenido del archivo no es válido.",
+      );
+    }
+
+    // La extensión final proviene del contenido validado.
+    const storedExtension =
+      MIME_EXTENSIONS[validation.detectedMimeType];
+
+    const filename = `${randomUUID()}${storedExtension}`;
 
     await mkdir(this.storageRoot, {
       recursive: true,
@@ -70,11 +105,14 @@ export class LocalStorageService implements StorageService {
         key,
       )
     ) {
-      throw new Error("La referencia del archivo es inválida.");
+      throw new Error(
+        "La referencia del archivo es inválida.",
+      );
     }
 
     await unlink(path.join(this.storageRoot, key));
   }
 }
 
-export const localStorageService = new LocalStorageService();
+export const localStorageService =
+  new LocalStorageService();

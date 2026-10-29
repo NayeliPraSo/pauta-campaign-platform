@@ -76,3 +76,55 @@ export async function createTicket(
     createdAt: ticket.created_at,
   };
 }
+
+export interface ParticipantTicket {
+  id: string;
+  originalFilename: string;
+  mimeType: string;
+  status: string;
+  createdAt: Date;
+}
+
+interface ParticipantTicketRow {
+  id: string;
+  original_filename: string;
+  mime_type: string;
+  status: string;
+  created_at: Date;
+}
+
+export type ListParticipantTicketsQuery = (
+  sql: string,
+  values: readonly string[],
+) => Promise<{
+  rows: ParticipantTicketRow[];
+}>;
+
+export async function listParticipantTickets(
+  participantId: string,
+  query: ListParticipantTicketsQuery = (sql, values) =>
+    pool.query<ParticipantTicketRow>(sql, [...values]),
+): Promise<ParticipantTicket[]> {
+  const result = await query(
+    `
+      SELECT
+        id::text AS id,
+        original_filename,
+        mime_type,
+        status,
+        created_at
+      FROM tickets
+      WHERE participant_id = $1
+      ORDER BY created_at DESC, id DESC
+    `,
+    [participantId],
+  );
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    originalFilename: row.original_filename,
+    mimeType: row.mime_type,
+    status: row.status,
+    createdAt: row.created_at,
+  }));
+}

@@ -1,0 +1,947 @@
+---
+import ParticipantLayout from "../layouts/ParticipantLayout.astro";
+---
+
+<ParticipantLayout
+  title="Mis tickets"
+  description="Registra y consulta tus comprobantes de compra."
+>
+  <section class="tickets-page">
+    <!-- Estado inicial de verificación -->
+    <p
+      id="session-loading"
+      class="session-message"
+      role="status"
+      aria-live="polite"
+    >
+      Verificando tu sesión...
+    </p>
+
+    <!-- Error al verificar la sesión -->
+    <div id="session-error" class="session-error" hidden>
+      <h2>No pudimos verificar tu sesión</h2>
+
+      <p>
+        Ocurrió un problema al comunicarnos con el servidor. Inténtalo
+        nuevamente.
+      </p>
+
+      <button id="retry-session" type="button"> Reintentar </button>
+    </div>
+
+    <!-- Contenido protegido -->
+    <div id="tickets-content" hidden>
+      <div class="tickets-container">
+        <header class="tickets-header">
+          <span class="eyebrow">MIS PARTICIPACIONES</span>
+
+          <h1>Mis tickets</h1>
+
+          <p>
+            Registra tus comprobantes de compra para participar en la campaña.
+          </p>
+        </header>
+
+        <div class="tickets-card">
+          <div class="card-heading">
+            <h2>Subir comprobante</h2>
+
+            <p>
+              Selecciona una fotografía o archivo PDF de tu ticket de compra.
+            </p>
+          </div>
+
+          <div class="upload-area">
+            <div class="upload-icon" aria-hidden="true">↑</div>
+
+            <p class="upload-title">Selecciona tu comprobante</p>
+
+            <input
+              id="ticket-file"
+              type="file"
+              accept=".jpg,.jpeg,.png,.pdf"
+              aria-describedby="file-requirements file-error"
+            />
+
+            <p id="file-requirements" class="upload-description">
+              Formatos permitidos: JPG, PNG y PDF. Tamaño máximo: 10 MB.
+            </p>
+
+            <p id="file-error" class="file-error" role="alert" hidden></p>
+
+            <!-- Vista previa del comprobante -->
+            <div id="file-preview" class="file-preview" hidden>
+              <img
+                id="preview-image"
+                alt="Vista previa del comprobante seleccionado"
+                hidden
+              />
+
+              <p id="preview-pdf" class="preview-pdf" hidden>
+                Archivo PDF seleccionado
+              </p>
+
+              <p id="selected-filename" class="selected-filename"></p>
+
+              <button id="remove-file" type="button" class="remove-button">
+                Quitar archivo
+              </button>
+            </div>
+          </div>
+
+          <button
+            id="submit-ticket"
+            type="button"
+            class="submit-button"
+            disabled
+          >
+            Registrar ticket
+          </button>
+          <p
+            id="ticket-result"
+            class="ticket-result"
+            role="status"
+            aria-live="polite"
+            hidden
+          >
+          </p>
+        </div>
+
+        <!-- Historial del participante -->
+        <section class="history-card" aria-labelledby="history-title">
+          <div class="history-heading">
+            <div>
+              <h2 id="history-title">Historial de tickets</h2>
+              <p>Consulta el estado de tus comprobantes registrados.</p>
+            </div>
+            <span id="history-count" class="history-count" hidden></span>
+          </div>
+
+          <p
+            id="history-loading"
+            class="history-message"
+            role="status"
+            aria-live="polite"
+          >
+            Cargando tus tickets...
+          </p>
+          <p id="history-empty" class="history-message" hidden>
+            Todavía no has registrado comprobantes.
+          </p>
+          <div id="history-error" class="history-error" hidden>
+            <p>No pudimos cargar tus comprobantes. Inténtalo nuevamente.</p>
+            <button id="retry-history" type="button">Reintentar</button>
+          </div>
+          <ul
+            id="history-list"
+            class="history-list"
+            aria-label="Comprobantes registrados"
+            hidden
+          >
+          </ul>
+        </section>
+      </div>
+    </div>
+  </section>
+</ParticipantLayout>
+
+<script>
+  import { ApiError } from "../lib/api";
+  import { obtenerSesion } from "../lib/auth";
+  import {
+    registrarTicket,
+    obtenerHistorialTickets,
+    type TicketHistorial,
+    type TicketStatus,
+  } from "../lib/tickets";
+
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+  const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "application/pdf"]);
+
+  // Elementos de la sesión
+  const sessionLoading =
+    document.querySelector<HTMLElement>("#session-loading");
+
+  const sessionError = document.querySelector<HTMLElement>("#session-error");
+
+  const ticketsContent =
+    document.querySelector<HTMLElement>("#tickets-content");
+
+  const retrySessionButton =
+    document.querySelector<HTMLButtonElement>("#retry-session");
+
+  // Elementos del formulario
+  const fileInput = document.querySelector<HTMLInputElement>("#ticket-file");
+
+  const fileError = document.querySelector<HTMLElement>("#file-error");
+
+  const filePreview = document.querySelector<HTMLElement>("#file-preview");
+
+  const previewImage =
+    document.querySelector<HTMLImageElement>("#preview-image");
+
+  const previewPdf = document.querySelector<HTMLElement>("#preview-pdf");
+
+  const selectedFilename =
+    document.querySelector<HTMLElement>("#selected-filename");
+
+  const removeButton =
+    document.querySelector<HTMLButtonElement>("#remove-file");
+
+  const submitButton =
+    document.querySelector<HTMLButtonElement>("#submit-ticket");
+
+  const ticketResult = document.querySelector<HTMLElement>("#ticket-result");
+
+  const historyLoading =
+    document.querySelector<HTMLElement>("#history-loading");
+  const historyEmpty = document.querySelector<HTMLElement>("#history-empty");
+  const historyError = document.querySelector<HTMLElement>("#history-error");
+  const historyList = document.querySelector<HTMLUListElement>("#history-list");
+  const historyCount = document.querySelector<HTMLElement>("#history-count");
+  const retryHistoryButton =
+    document.querySelector<HTMLButtonElement>("#retry-history");
+
+  let isSubmitting = false;
+  let historyRequestId = 0;
+
+  let previewUrl: string | null = null;
+  let sessionVerified = false;
+  let selectedFileValid = false;
+
+  /**
+   * Actualiza el estado del botón.
+   *
+   * Solo se habilita cuando existe una sesión
+   * válida y el archivo seleccionado pasó
+   * las validaciones del frontend.
+   */
+  function actualizarBoton(): void {
+    if (!submitButton) return;
+
+    submitButton.disabled =
+      !sessionVerified || !selectedFileValid || isSubmitting;
+  }
+
+  /**
+   * Controla la visibilidad del contenido
+   * según el estado de la sesión.
+   */
+  function mostrarEstadoSesion(
+    state: "loading" | "authenticated" | "error",
+  ): void {
+    sessionVerified = state === "authenticated";
+
+    if (sessionLoading) {
+      sessionLoading.hidden = state !== "loading";
+    }
+
+    if (sessionError) {
+      sessionError.hidden = state !== "error";
+    }
+
+    if (ticketsContent) {
+      ticketsContent.hidden = state !== "authenticated";
+    }
+
+    actualizarBoton();
+  }
+
+  /**
+   * Comprueba la sesión utilizando
+   * el endpoint existente /api/auth/me.
+   */
+  async function verificarSesionTickets(): Promise<void> {
+    historyRequestId++;
+    mostrarEstadoSesion("loading");
+
+    try {
+      await obtenerSesion();
+
+      mostrarEstadoSesion("authenticated");
+      void cargarHistorial();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        window.location.replace("/login");
+        return;
+      }
+
+      mostrarEstadoSesion("error");
+    }
+  }
+
+  /**
+   * Libera la URL temporal utilizada
+   * para mostrar imágenes.
+   */
+  function liberarVistaPrevia(): void {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      previewUrl = null;
+    }
+  }
+
+  /**
+   * Limpia la vista previa y restablece
+   * el estado del archivo.
+   */
+  function limpiarVistaPrevia(): void {
+    liberarVistaPrevia();
+
+    selectedFileValid = false;
+
+    if (previewImage) {
+      previewImage.hidden = true;
+      previewImage.removeAttribute("src");
+    }
+
+    if (previewPdf) {
+      previewPdf.hidden = true;
+    }
+
+    if (selectedFilename) {
+      selectedFilename.textContent = "";
+    }
+
+    if (filePreview) {
+      filePreview.hidden = true;
+    }
+
+    actualizarBoton();
+  }
+
+  /**
+   * Muestra los errores de validación
+   * del archivo seleccionado.
+   */
+  function mostrarErrorArchivo(message: string): void {
+    if (!fileError) return;
+
+    fileError.textContent = message;
+    fileError.hidden = false;
+  }
+
+  function limpiarErrorArchivo(): void {
+    if (!fileError) return;
+
+    fileError.textContent = "";
+    fileError.hidden = true;
+  }
+
+  /**
+   * Valida y muestra el comprobante
+   * seleccionado por el participante.
+   */
+  function procesarArchivoSeleccionado(): void {
+    limpiarVistaPrevia();
+    limpiarErrorArchivo();
+    limpiarResultado();
+
+    const file = fileInput?.files?.[0];
+
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.has(file.type)) {
+      mostrarErrorArchivo("Selecciona un archivo JPG, PNG o PDF.");
+
+      if (fileInput) fileInput.value = "";
+      return;
+    }
+
+    if (file.size === 0 || file.size > MAX_FILE_SIZE) {
+      mostrarErrorArchivo(
+        "El archivo debe tener un tamaño mayor a 0 y máximo de 10 MB.",
+      );
+
+      if (fileInput) fileInput.value = "";
+      return;
+    }
+
+    if (selectedFilename) {
+      selectedFilename.textContent = file.name;
+    }
+
+    if (file.type === "application/pdf") {
+      if (previewPdf) {
+        previewPdf.hidden = false;
+      }
+    } else if (previewImage) {
+      previewUrl = URL.createObjectURL(file);
+      previewImage.src = previewUrl;
+      previewImage.hidden = false;
+    }
+
+    if (filePreview) {
+      filePreview.hidden = false;
+    }
+
+    selectedFileValid = true;
+    actualizarBoton();
+  }
+
+  function mostrarResultado(message: string, type: "success" | "error"): void {
+    if (!ticketResult) return;
+
+    ticketResult.textContent = message;
+    ticketResult.dataset.type = type;
+    ticketResult.hidden = false;
+  }
+
+  function limpiarResultado(): void {
+    if (!ticketResult) return;
+
+    ticketResult.textContent = "";
+    ticketResult.hidden = true;
+    delete ticketResult.dataset.type;
+  }
+
+  const STATUS_LABELS: Record<TicketStatus, string> = {
+    pending: "Pendiente",
+    processing: "En procesamiento",
+    approved: "Aprobado",
+    rejected: "Rechazado",
+    requires_review: "En revisión",
+  };
+
+  function mostrarEstadoHistorial(
+    state: "loading" | "empty" | "error" | "loaded",
+  ): void {
+    if (historyLoading) historyLoading.hidden = state !== "loading";
+    if (historyEmpty) historyEmpty.hidden = state !== "empty";
+    if (historyError) historyError.hidden = state !== "error";
+    if (historyList) historyList.hidden = state !== "loaded";
+    if (historyCount) historyCount.hidden = state !== "loaded";
+  }
+
+  function formatearFecha(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Fecha no disponible";
+    return new Intl.DateTimeFormat("es-MX", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "America/Mexico_City",
+    }).format(date);
+  }
+
+  function renderizarHistorial(tickets: TicketHistorial[]): void {
+    if (!historyList || !historyCount) return;
+    historyList.replaceChildren();
+
+    for (const ticket of tickets) {
+      const item = document.createElement("li");
+      item.className = "history-item";
+
+      const info = document.createElement("div");
+      info.className = "history-info";
+
+      const filename = document.createElement("strong");
+      filename.className = "history-filename";
+      filename.textContent = ticket.originalFilename;
+
+      const meta = document.createElement("span");
+      meta.className = "history-date";
+      meta.textContent = formatearFecha(ticket.createdAt);
+
+      const badge = document.createElement("span");
+      badge.className = "status-badge";
+      badge.dataset.status = ticket.status;
+      badge.textContent = STATUS_LABELS[ticket.status] ?? "Estado desconocido";
+
+      info.append(filename, meta);
+      item.append(info, badge);
+      historyList.append(item);
+    }
+
+    historyCount.textContent = `${tickets.length} ${tickets.length === 1 ? "ticket" : "tickets"}`;
+    mostrarEstadoHistorial(tickets.length === 0 ? "empty" : "loaded");
+  }
+
+  async function cargarHistorial(): Promise<void> {
+    if (!sessionVerified) return;
+    const requestId = ++historyRequestId;
+    mostrarEstadoHistorial("loading");
+
+    try {
+      const response = await obtenerHistorialTickets();
+      if (requestId !== historyRequestId) return;
+      renderizarHistorial(response.data);
+    } catch (error) {
+      if (requestId !== historyRequestId) return;
+      if (error instanceof ApiError && error.status === 401) {
+        window.location.replace("/login");
+        return;
+      }
+      mostrarEstadoHistorial("error");
+    }
+  }
+
+  // Eventos del formulario
+  fileInput?.addEventListener("change", procesarArchivoSeleccionado);
+
+  removeButton?.addEventListener("click", () => {
+    if (fileInput) {
+      fileInput.value = "";
+    }
+
+    limpiarErrorArchivo();
+    limpiarVistaPrevia();
+    limpiarResultado();
+  });
+
+  submitButton?.addEventListener("click", async () => {
+    if (!sessionVerified || !selectedFileValid || isSubmitting) {
+      return;
+    }
+
+    const file = fileInput?.files?.[0];
+
+    if (!file || !submitButton) return;
+
+    isSubmitting = true;
+    actualizarBoton();
+    limpiarResultado();
+
+    submitButton.textContent = "Registrando ticket...";
+
+    try {
+      const response = await registrarTicket(file);
+
+      mostrarResultado(
+        response.message || "El comprobante se registró correctamente.",
+        "success",
+      );
+
+      if (fileInput) {
+        fileInput.value = "";
+      }
+
+      limpiarVistaPrevia();
+      await cargarHistorial();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          window.location.replace("/login");
+          return;
+        }
+
+        mostrarResultado(error.message, "error");
+      } else {
+        mostrarResultado(
+          "No fue posible registrar el comprobante. Inténtalo nuevamente.",
+          "error",
+        );
+      }
+    } finally {
+      isSubmitting = false;
+      submitButton.textContent = "Registrar ticket";
+      actualizarBoton();
+    }
+  });
+
+  retryHistoryButton?.addEventListener("click", () => {
+    void cargarHistorial();
+  });
+
+  // Permite reintentar la verificación de sesión
+  retrySessionButton?.addEventListener("click", () => {
+    void verificarSesionTickets();
+  });
+
+  // Liberar recursos al abandonar la página
+  window.addEventListener("pagehide", liberarVistaPrevia);
+
+  // Verificar la sesión al entrar
+  void verificarSesionTickets();
+</script>
+
+<style>
+  .tickets-page {
+    min-height: calc(100vh - 76px);
+    padding: clamp(24px, 5vw, 56px) 24px;
+  }
+
+  .tickets-container {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .tickets-header {
+    margin-bottom: 32px;
+  }
+
+  .eyebrow {
+    color: #ea5b0c;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+  }
+
+  h1 {
+    margin: 12px 0;
+    color: #0f172a;
+    font-size: clamp(2rem, 5vw, 2.75rem);
+  }
+
+  .tickets-header p,
+  .card-heading p {
+    color: #64748b;
+    line-height: 1.6;
+  }
+
+  .tickets-card {
+    padding: clamp(24px, 5vw, 40px);
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 12px 40px rgb(15 23 42 / 5%);
+  }
+
+  .card-heading {
+    margin-bottom: 24px;
+  }
+
+  h2 {
+    margin: 0 0 8px;
+    color: #0f172a;
+    font-size: 22px;
+  }
+
+  .card-heading p {
+    margin: 0;
+  }
+
+  .upload-area {
+    padding: 36px 24px;
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+    background: #f8fafc;
+    text-align: center;
+  }
+
+  .upload-icon {
+    display: grid;
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 16px;
+    place-items: center;
+    border-radius: 50%;
+    background: #fff7ed;
+    color: #ea5b0c;
+    font-size: 32px;
+  }
+
+  .upload-title {
+    margin: 0 0 16px;
+    color: #0f172a;
+    font-weight: 700;
+  }
+
+  .upload-description {
+    margin: 16px 0 0;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  input[type="file"] {
+    width: 100%;
+    max-width: 320px;
+    color: #475569;
+  }
+
+  .file-error {
+    margin-top: 12px;
+    color: #b91c1c;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .file-preview {
+    margin-top: 24px;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  #preview-image {
+    display: block;
+    max-width: 100%;
+    max-height: 320px;
+    margin: 0 auto 16px;
+    border-radius: 8px;
+    object-fit: contain;
+  }
+
+  .preview-pdf {
+    color: #ea5b0c;
+    font-weight: 700;
+  }
+
+  .selected-filename {
+    overflow-wrap: anywhere;
+    color: #334155;
+    font-size: 14px;
+  }
+
+  .remove-button {
+    padding: 8px 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    color: #334155;
+    cursor: pointer;
+  }
+
+  .remove-button:hover {
+    background: #f1f5f9;
+  }
+
+  .submit-button {
+    width: 100%;
+    min-height: 48px;
+    margin-top: 24px;
+    padding: 12px 20px;
+    border: 0;
+    border-radius: 8px;
+    background: #ea5b0c;
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .session-message {
+    padding: 48px 24px;
+    color: #64748b;
+    text-align: center;
+  }
+
+  .session-error {
+    width: min(100%, 560px);
+    margin: 48px auto;
+    padding: 32px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+    text-align: center;
+  }
+
+  .session-error h2 {
+    margin-top: 0;
+    color: #0f172a;
+  }
+
+  .session-error p {
+    color: #64748b;
+    line-height: 1.6;
+  }
+
+  #retry-session {
+    min-height: 44px;
+    margin-top: 16px;
+    padding: 10px 20px;
+    border: 0;
+    border-radius: 8px;
+    background: #ea5b0c;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  #retry-session:hover {
+    background: #c94c08;
+  }
+
+  .history-card {
+    margin-top: 24px;
+    padding: clamp(24px, 5vw, 40px);
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 12px 40px rgb(15 23 42 / 5%);
+  }
+
+  .history-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .history-heading h2 {
+    margin-bottom: 8px;
+  }
+  .history-heading p {
+    margin: 0;
+    color: #64748b;
+    line-height: 1.6;
+  }
+  .history-count {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .history-message {
+    margin: 0;
+    padding: 16px 0;
+    color: #64748b;
+  }
+
+  :global(.history-list) {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  :global(.history-item) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 0;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  :global(.history-info) {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    gap: 6px;
+  }
+
+  :global(.history-filename) {
+    color: #0f172a;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  :global(.history-date) {
+    color: #64748b;
+    font-size: 13px;
+  }
+
+  :global(.status-badge) {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  :global(.status-badge[data-status="pending"]) {
+    background: #fff7ed;
+    color: #9a3412;
+  }
+
+  :global(.status-badge[data-status="processing"]) {
+    background: #eff6ff;
+    color: #1d4ed8;
+  }
+
+  :global(.status-badge[data-status="approved"]) {
+    background: #f0fdf4;
+    color: #166534;
+  }
+
+  :global(.status-badge[data-status="rejected"]) {
+    background: #fef2f2;
+    color: #b91c1c;
+  }
+
+  :global(.status-badge[data-status="requires_review"]) {
+    background: #fefce8;
+    color: #854d0e;
+  }
+
+  .history-error {
+    color: #b91c1c;
+  }
+  .history-error p {
+    margin-top: 0;
+  }
+  #retry-history {
+    padding: 10px 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    color: #334155;
+    cursor: pointer;
+  }
+
+  /* Respeta los elementos ocultos */
+  #tickets-content[hidden],
+  #session-loading[hidden],
+  #session-error[hidden],
+  #file-error[hidden],
+  #file-preview[hidden],
+  #preview-image[hidden],
+  #preview-pdf[hidden],
+  #history-loading[hidden],
+  #history-empty[hidden],
+  #history-error[hidden],
+  #history-list[hidden],
+  #history-count[hidden] {
+    display: none;
+  }
+
+  .ticket-result {
+    margin: 16px 0 0;
+    padding: 14px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .ticket-result[data-type="success"] {
+    border: 1px solid #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+  }
+
+  .ticket-result[data-type="error"] {
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+  }
+
+  .ticket-result[hidden] {
+    display: none;
+  }
+
+  .submit-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  @media (max-width: 480px) {
+    .tickets-page {
+      padding: 24px 16px;
+    }
+
+    .upload-area {
+      padding: 28px 16px;
+    }
+
+    .history-heading,
+    :global(.history-item) {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    :global(.history-info) {
+      width: 100%;
+    }
+  }
+</style>

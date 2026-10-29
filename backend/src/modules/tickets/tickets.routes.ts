@@ -13,7 +13,42 @@ import {
   registerTicket,
 } from "./tickets.service.js";
 
+import { listParticipantTickets } from "./tickets.repository.js";
+
 export const ticketsRouter = Router();
+
+ticketsRouter.get(
+  "/",
+  requireAuth,
+  async (_req, res) => {
+    try {
+      const auth = res.locals.auth as {
+        participantId: string;
+        sessionId: string;
+      };
+
+      const tickets = await listParticipantTickets(
+        auth.participantId,
+      );
+
+      res.status(200).json({
+        success: true,
+        data: tickets,
+      });
+    } catch (error) {
+      console.error(
+        "Error al consultar los comprobantes:",
+        error,
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "No fue posible consultar los comprobantes.",
+      });
+    }
+  },
+);
 
 ticketsRouter.post(
   "/",
@@ -39,7 +74,8 @@ ticketsRouter.post(
 
       res.status(201).json({
         success: true,
-        message: "El comprobante se registró correctamente.",
+        message:
+          "El comprobante se registró correctamente.",
         data: {
           id: ticket.id,
           status: ticket.status,
@@ -62,7 +98,8 @@ ticketsRouter.post(
 
       res.status(500).json({
         success: false,
-        message: "No fue posible registrar el comprobante.",
+        message:
+          "No fue posible registrar el comprobante.",
       });
     }
   },
