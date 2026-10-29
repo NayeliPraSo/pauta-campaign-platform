@@ -8,6 +8,11 @@ import { uploadTicket } from "./middlewares/uploadTicket.middleware.js";
 import { validateUploadedTicket } from "./middlewares/validateUploadedTicket.middleware.js";
 import { handleTicketUploadError } from "./middlewares/handleTicketUploadError.middleware.js";
 
+import {
+  DuplicateTicketError,
+  registerTicket,
+} from "./tickets.service.js";
+
 export const ticketsRouter = Router();
 
 ticketsRouter.post(
@@ -16,18 +21,50 @@ ticketsRouter.post(
   requireAuth,
   uploadTicket.single("file"),
   validateUploadedTicket,
-  (req, res) => {
-    const file = req.file!;
+  async (req, res) => {
+    try {
+      const file = req.file!;
 
-    res.status(200).json({
-      success: true,
-      message: "El archivo superó las validaciones iniciales.",
-      data: {
-        filename: file.originalname,
+      const auth = res.locals.auth as {
+        participantId: string;
+        sessionId: string;
+      };
+
+      const ticket = await registerTicket({
+        participantId: auth.participantId,
+        fileBuffer: file.buffer,
+        originalFilename: file.originalname,
         mimeType: file.mimetype,
-        size: file.size,
-      },
-    });
+      });
+
+      res.status(201).json({
+        success: true,
+        message: "El comprobante se registró correctamente.",
+        data: {
+          id: ticket.id,
+          status: ticket.status,
+          createdAt: ticket.createdAt,
+        },
+      });
+    } catch (error) {
+      if (error instanceof DuplicateTicketError) {
+        res.status(409).json({
+          success: false,
+          message: error.message,
+        });
+        return;
+      }
+
+      console.error(
+        "Error al registrar el comprobante:",
+        error,
+      );
+
+      res.status(500).json({
+        success: false,
+        message: "No fue posible registrar el comprobante.",
+      });
+    }
   },
 );
 

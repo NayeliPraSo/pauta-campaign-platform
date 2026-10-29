@@ -19,3 +19,6 @@ dist/
 Thumbs.db
 .vscode/*
 !.vscode/extensions.json
+
+# Private uploaded files
+backend/storage/*
