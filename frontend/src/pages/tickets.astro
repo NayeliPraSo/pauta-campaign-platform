@@ -396,12 +396,56 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
       timeZone: "America/Mexico_City",
     }).format(date);
   }
+  function crearIconoHistorial(filename: string): HTMLElement {
+    const isPdf = filename.toLowerCase().endsWith(".pdf");
+    const icon = document.createElement("span");
+    icon.className = "history-file-icon";
+    icon.dataset.format = isPdf ? "pdf" : "image";
+    icon.setAttribute("aria-hidden", "true");
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "24");
+    svg.setAttribute("height", "24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.8");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+
+    const paths = isPdf
+      ? [
+          "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z",
+          "M14 2v6h6",
+          "M8 13h8",
+          "M8 17h8",
+        ]
+      : [
+          "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",
+          "m3 17 5-5 4 4 3-3 6 6",
+          "M8.5 8.5h.01",
+        ];
+    for (const d of paths) {
+      const path = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path",
+      );
+      path.setAttribute("d", d);
+      svg.append(path);
+    }
+    icon.append(svg);
+    return icon;
+  }
+
   function renderizarHistorial(tickets: TicketHistorial[]): void {
     if (!historyList || !historyCount) return;
     historyList.replaceChildren();
+
+    const fragment = document.createDocumentFragment();
     for (const ticket of tickets) {
       const item = document.createElement("li");
       item.className = "history-item";
+
       const info = document.createElement("div");
       info.className = "history-info";
       const filename = document.createElement("strong");
@@ -410,17 +454,23 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
       const meta = document.createElement("span");
       meta.className = "history-date";
       meta.textContent = formatearFecha(ticket.createdAt);
+      const details = document.createElement("div");
+      details.className = "history-details";
+      details.append(filename, meta);
+      info.append(crearIconoHistorial(ticket.originalFilename), details);
+
       const badge = document.createElement("span");
       badge.className = "status-badge";
       badge.dataset.status = ticket.status;
       badge.textContent = STATUS_LABELS[ticket.status] ?? "Estado desconocido";
-      info.append(filename, meta);
       item.append(info, badge);
-      historyList.append(item);
+      fragment.append(item);
     }
+    historyList.append(fragment);
     historyCount.textContent = `${tickets.length} ${tickets.length === 1 ? "ticket" : "tickets"}`;
     mostrarEstadoHistorial(tickets.length === 0 ? "empty" : "loaded");
   }
+
   async function cargarHistorial(): Promise<void> {
     if (!sessionVerified) return;
     const requestId = ++historyRequestId;
@@ -905,33 +955,77 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     color: #64748b;
   }
   :global(.history-list) {
+    display: grid;
+    gap: 12px;
     margin: 0;
     padding: 0;
     list-style: none;
   }
+
   :global(.history-item) {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    padding: 18px 0;
-    border-top: 1px solid #e2e8f0;
+    gap: 20px;
+    min-width: 0;
+    padding: 16px 18px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #fff;
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
   }
+
+  :global(.history-item:hover) {
+    border-color: #fed7aa;
+    box-shadow: 0 6px 20px rgb(15 23 42 / 5%);
+  }
+
   :global(.history-info) {
-    display: grid;
+    display: flex;
+    align-items: center;
     min-width: 0;
     flex: 1;
+    gap: 14px;
+  }
+
+  :global(.history-file-icon) {
+    display: grid;
+    width: 52px;
+    height: 52px;
+    flex-shrink: 0;
+    place-items: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    color: #475569;
+  }
+
+  :global(.history-file-icon[data-format="pdf"]) {
+    border-color: #fed7aa;
+    background: #fff7ed;
+    color: #ea5b0c;
+  }
+
+  :global(.history-details) {
+    display: grid;
+    min-width: 0;
     gap: 6px;
   }
+
   :global(.history-filename) {
     color: #0f172a;
+    font-size: 14px;
     font-weight: 700;
     overflow-wrap: anywhere;
   }
+
   :global(.history-date) {
     color: #64748b;
     font-size: 13px;
   }
+
   :global(.status-badge) {
     flex-shrink: 0;
     display: inline-flex;
@@ -1057,10 +1151,26 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
       width: 80px;
       height: 80px;
     }
-    .history-heading,
+    .history-heading {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
     :global(.history-item) {
       align-items: flex-start;
       flex-direction: column;
+      gap: 12px;
+      padding: 16px;
+    }
+
+    :global(.history-info) {
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    :global(.history-file-icon) {
+      width: 44px;
+      height: 44px;
     }
     .history-actions {
       width: 100%;
@@ -1068,6 +1178,11 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     }
     :global(.history-info) {
       width: 100%;
+    }
+
+    :global(.status-badge) {
+      align-self: flex-start;
+      margin-left: 56px;
     }
   }
 </style>
