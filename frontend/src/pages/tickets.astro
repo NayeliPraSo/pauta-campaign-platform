@@ -26,7 +26,9 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
         nuevamente.
       </p>
 
-      <button id="retry-session" type="button"> Reintentar </button>
+      <button id="retry-session" type="button">
+        Reintentar
+      </button>
     </div>
 
     <!-- Contenido protegido -->
@@ -52,7 +54,9 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
           </div>
 
           <div class="upload-area">
-            <div class="upload-icon" aria-hidden="true">↑</div>
+            <div class="upload-icon" aria-hidden="true">
+              ↑
+            </div>
 
             <p class="upload-title">Selecciona tu comprobante</p>
 
@@ -103,8 +107,7 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
             role="status"
             aria-live="polite"
             hidden
-          >
-          </p>
+          ></p>
         </div>
 
         <!-- Historial del participante -->
@@ -114,7 +117,18 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
               <h2 id="history-title">Historial de tickets</h2>
               <p>Consulta el estado de tus comprobantes registrados.</p>
             </div>
-            <span id="history-count" class="history-count" hidden></span>
+            <div class="history-actions">
+              <span id="history-count" class="history-count" hidden></span>
+
+              <button
+                id="refresh-history"
+                type="button"
+                class="refresh-button"
+                aria-label="Actualizar historial de tickets"
+              >
+                Actualizar historial
+              </button>
+            </div>
           </div>
 
           <p
@@ -130,15 +144,16 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
           </p>
           <div id="history-error" class="history-error" hidden>
             <p>No pudimos cargar tus comprobantes. Inténtalo nuevamente.</p>
-            <button id="retry-history" type="button">Reintentar</button>
+            <button id="retry-history" type="button">
+              Reintentar
+            </button>
           </div>
           <ul
             id="history-list"
             class="history-list"
             aria-label="Comprobantes registrados"
             hidden
-          >
-          </ul>
+          ></ul>
         </section>
       </div>
     </div>
@@ -202,6 +217,8 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
   const historyCount = document.querySelector<HTMLElement>("#history-count");
   const retryHistoryButton =
     document.querySelector<HTMLButtonElement>("#retry-history");
+  const refreshHistoryButton =
+    document.querySelector<HTMLButtonElement>("#refresh-history");
 
   let isSubmitting = false;
   let historyRequestId = 0;
@@ -412,6 +429,11 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     if (historyError) historyError.hidden = state !== "error";
     if (historyList) historyList.hidden = state !== "loaded";
     if (historyCount) historyCount.hidden = state !== "loaded";
+    if (refreshHistoryButton) {
+      refreshHistoryButton.disabled = state === "loading";
+      refreshHistoryButton.textContent =
+        state === "loading" ? "Actualizando..." : "Actualizar historial";
+    }
   }
 
   function formatearFecha(value: string): string {
@@ -540,6 +562,9 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
   });
 
   retryHistoryButton?.addEventListener("click", () => {
+    void cargarHistorial();
+  });
+  refreshHistoryButton?.addEventListener("click", () => {
     void cargarHistorial();
   });
 
@@ -787,6 +812,43 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     font-size: 13px;
     font-weight: 600;
   }
+
+  .history-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .refresh-button {
+    min-height: 36px;
+    padding: 8px 14px;
+    border: 1px solid #fed7aa;
+    border-radius: 8px;
+    background: #fff7ed;
+    color: #c2410c;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  .refresh-button:hover:not(:disabled) {
+    background: #ffedd5;
+    border-color: #fdba74;
+  }
+
+  .refresh-button:focus-visible {
+    outline: 2px solid #ea5b0c;
+    outline-offset: 3px;
+  }
+
+  .refresh-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
   .history-message {
     margin: 0;
     padding: 16px 0;
@@ -938,6 +1000,11 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     :global(.history-item) {
       align-items: flex-start;
       flex-direction: column;
+    }
+
+    .history-actions {
+      width: 100%;
+      justify-content: space-between;
     }
 
     :global(.history-info) {
