@@ -2,5 +2,7 @@ packages:
   - "frontend"
   - "backend"
 
+allowBuilds:
+  esbuild: true
 patchedDependencies:
   '@veryfi/veryfi-sdk@1.5.2': backend/patches/@veryfi__veryfi-sdk@1.5.2.patch  

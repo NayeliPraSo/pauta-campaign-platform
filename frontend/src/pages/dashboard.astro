@@ -1,14 +1,21 @@
 ---
 import ParticipantLayout from "../layouts/ParticipantLayout.astro";
 import ParticipantProfile from "../components/participant/ParticipantProfile.astro";
+import { campaignConfig } from "../config/campaign";
+import { getParticipantNavigation } from "../config/participantNavigation";
+
+const availableRoutes = new Set(["/tickets"]);
+
+const availableModules = getParticipantNavigation(
+  campaignConfig.participant,
+).filter((item) => item.module !== undefined && availableRoutes.has(item.href));
 ---
 
 <ParticipantLayout
-  title="Mi cuenta"
-  description="Consulta tu cuenta y administra tu sesión."
+  title="Mi panel"
+  description="Consulta tu participación y accede a los módulos de la campaña."
 >
   <div class="dashboard">
-    <!-- Estado inicial mientras se verifica la sesión -->
     <p
       id="session-loading"
       class="session-loading"
@@ -18,33 +25,90 @@ import ParticipantProfile from "../components/participant/ParticipantProfile.ast
       Verificando tu sesión...
     </p>
 
-    <!-- Contenido visible únicamente con sesión válida -->
-    <section
-      id="dashboard-content"
-      class="dashboard-card"
-      aria-labelledby="dashboard-title"
-      hidden
-    >
-      <span class="eyebrow">PAUTA CAMPAIGN PLATFORM</span>
+    <div id="dashboard-content" class="dashboard-content" hidden>
+      <section class="welcome-section" aria-labelledby="dashboard-title">
+        <span class="eyebrow">PAUTA CAMPAIGN PLATFORM</span>
 
-      <h1 id="dashboard-title">Mi cuenta</h1>
+        <h1 id="dashboard-title">
+          ¡Hola, <span id="welcome-name">participante</span>!
+        </h1>
 
-      <p
-        id="session-status"
-        class="session-status"
-        role="status"
-        aria-live="polite"
-      >
-        Sesión activa.
-      </p>
+        <p class="welcome-description">
+          Bienvenido a tu espacio de participación. Desde aquí puedes consultar
+          tu información y acceder a las actividades disponibles.
+        </p>
+      </section>
 
-      <ParticipantProfile />
-    </section>
+      <section class="modules-section" aria-labelledby="modules-title">
+        <div class="section-heading">
+          <h2 id="modules-title">Mis actividades</h2>
+          <p>Explora los módulos disponibles en esta campaña.</p>
+        </div>
 
-    <!-- Mensaje cuando ocurre un error de conexión -->
+        {
+          availableModules.length > 0 ? (
+            <div class="modules-grid">
+              {availableModules.map((module) => (
+                <article class="module-card">
+                  <div class="module-icon" aria-hidden="true">
+                    {module.id === "tickets" ? "🎟️" : "★"}
+                  </div>
+
+                  <div class="module-content">
+                    <h3>
+                      {module.id === "tickets"
+                        ? "Mis comprobantes"
+                        : module.label}
+                    </h3>
+
+                    <p>
+                      {module.id === "tickets"
+                        ? "Registra tus tickets de compra y consulta el estado de tus comprobantes."
+                        : "Accede a esta actividad de la campaña."}
+                    </p>
+                  </div>
+
+                  <a class="module-link" href={module.href}>
+                    {module.id === "tickets"
+                      ? "Ver mis tickets"
+                      : "Ir a la actividad"}
+                    <span aria-hidden="true">→</span>
+                  </a>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p class="empty-modules">
+              Por el momento no hay actividades disponibles.
+            </p>
+          )
+        }
+      </section>
+
+      <section class="profile-section" aria-labelledby="profile-title">
+        <div class="section-heading">
+          <h2 id="profile-title">Mi información</h2>
+          <p>Consulta los datos asociados a tu cuenta.</p>
+        </div>
+
+        <div class="profile-card">
+          <ParticipantProfile />
+
+          <p
+            id="session-status"
+            class="session-status"
+            role="status"
+            aria-live="polite"
+          >
+            Sesión activa.
+          </p>
+        </div>
+      </section>
+    </div>
+
     <section
       id="session-error"
-      class="dashboard-card"
+      class="error-card"
       aria-labelledby="error-title"
       hidden
     >
@@ -82,84 +146,50 @@ import ParticipantProfile from "../components/participant/ParticipantProfile.ast
   const participantEmail =
     document.querySelector<HTMLElement>("#participant-email");
 
+  const welcomeName = document.querySelector<HTMLElement>("#welcome-name");
+
   const logoutButton =
     document.querySelector<HTMLButtonElement>("#logout-button");
 
   const retryButton =
     document.querySelector<HTMLButtonElement>("#retry-button");
 
-  /**
-   * Controla qué contenido se muestra
-   * durante la verificación de sesión.
-   */
   function mostrarCargando(): void {
-    if (sessionLoading) {
-      sessionLoading.hidden = false;
-    }
-
-    if (dashboardContent) {
-      dashboardContent.hidden = true;
-    }
-
-    if (sessionError) {
-      sessionError.hidden = true;
-    }
+    if (sessionLoading) sessionLoading.hidden = false;
+    if (dashboardContent) dashboardContent.hidden = true;
+    if (sessionError) sessionError.hidden = true;
   }
 
-  /**
-   * Muestra el dashboard únicamente cuando
-   * el backend confirma una sesión válida.
-   */
   function mostrarDashboard(): void {
-    if (sessionLoading) {
-      sessionLoading.hidden = true;
-    }
-
-    if (dashboardContent) {
-      dashboardContent.hidden = false;
-    }
-
-    if (sessionError) {
-      sessionError.hidden = true;
-    }
+    if (sessionLoading) sessionLoading.hidden = true;
+    if (dashboardContent) dashboardContent.hidden = false;
+    if (sessionError) sessionError.hidden = true;
   }
 
-  /**
-   * Muestra un error de comunicación.
-   */
   function mostrarError(): void {
-    if (sessionLoading) {
-      sessionLoading.hidden = true;
-    }
-
-    if (dashboardContent) {
-      dashboardContent.hidden = true;
-    }
-
-    if (sessionError) {
-      sessionError.hidden = false;
-    }
+    if (sessionLoading) sessionLoading.hidden = true;
+    if (dashboardContent) dashboardContent.hidden = true;
+    if (sessionError) sessionError.hidden = false;
   }
 
-  /**
-   * Consulta la sesión actual.
-   *
-   * - Sesión válida: muestra el dashboard.
-   * - HTTP 401: redirige a /login.
-   * - Otros errores: permite reintentar.
-   */
   async function verificarSesion(): Promise<void> {
     mostrarCargando();
 
     try {
       const response = await obtenerSesion();
+      const participant = response.data.participant;
 
       if (participantName) {
-        participantName.textContent = response.data.participant.full_name;
+        participantName.textContent = participant.full_name;
       }
 
       if (participantEmail) {
-        participantEmail.textContent = response.data.participant.email;
+        participantEmail.textContent = participant.email;
+      }
+
+      if (welcomeName) {
+        welcomeName.textContent =
+          participant.full_name.trim().split(/\s+/)[0] || "participante";
       }
 
       if (sessionStatus) {
@@ -177,14 +207,8 @@ import ParticipantProfile from "../components/participant/ParticipantProfile.ast
     }
   }
 
-  /**
-   * Cierra la sesión y redirige al login
-   * cuando el backend confirma el cierre.
-   */
   logoutButton?.addEventListener("click", async () => {
-    if (!logoutButton) {
-      return;
-    }
+    if (!logoutButton) return;
 
     logoutButton.disabled = true;
     logoutButton.textContent = "Cerrando sesión...";
@@ -192,7 +216,6 @@ import ParticipantProfile from "../components/participant/ParticipantProfile.ast
     try {
       await cerrarSesion();
 
-      // Ocultamos los datos antes de redirigir.
       mostrarCargando();
 
       if (sessionLoading) {
@@ -211,46 +234,42 @@ import ParticipantProfile from "../components/participant/ParticipantProfile.ast
     }
   });
 
-  /**
-   * Permite volver a consultar la sesión
-   * cuando ocurre un error de comunicación.
-   */
   retryButton?.addEventListener("click", () => {
     void verificarSesion();
   });
 
-  // Verificación inicial.
   void verificarSesion();
 </script>
 
 <style>
   .dashboard {
+    width: min(100% - 40px, 1100px);
+    margin: 0 auto;
+    padding: 48px 0 72px;
+  }
+
+  .dashboard-content {
     display: grid;
-    min-height: 100vh;
-    padding: 24px;
-    place-items: center;
+    gap: 40px;
   }
 
-  .dashboard-card {
-    width: 100%;
-    max-width: 560px;
-    padding: clamp(24px, 5vw, 40px);
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    background: #fff;
-    box-shadow: 0 12px 40px rgb(15 23 42 / 5%);
-  }
-
-  /* Evita mostrar contenido oculto */
-  .dashboard-card[hidden],
-  .session-loading[hidden] {
+  .dashboard-content[hidden],
+  .session-loading[hidden],
+  .error-card[hidden] {
     display: none;
   }
 
   .session-loading {
+    padding: 80px 0;
     color: #64748b;
-    font-size: 14px;
     text-align: center;
+  }
+
+  .welcome-section {
+    padding: 36px;
+    border: 1px solid #fed7aa;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #fff7ed, #fff);
   }
 
   .eyebrow {
@@ -261,35 +280,171 @@ import ParticipantProfile from "../components/participant/ParticipantProfile.ast
   }
 
   h1 {
-    margin: 16px 0;
-    font-size: clamp(2rem, 5vw, 2.5rem);
+    margin: 12px 0;
+    color: #1e293b;
+    font-size: clamp(28px, 4vw, 38px);
+    line-height: 1.2;
+  }
+
+  .welcome-description {
+    max-width: 650px;
+    margin: 0;
+    color: #64748b;
+    line-height: 1.7;
+  }
+
+  .section-heading {
+    margin-bottom: 20px;
+  }
+
+  .section-heading h2 {
+    margin: 0 0 8px;
+    color: #1e293b;
+    font-size: 22px;
+  }
+
+  .section-heading p {
+    margin: 0;
+    color: #64748b;
+    font-size: 14px;
+  }
+
+  .modules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+  }
+
+  .module-card {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-height: 230px;
+    padding: 28px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgb(15 23 42 / 4%);
+  }
+
+  .module-icon {
+    display: grid;
+    width: 52px;
+    height: 52px;
+    place-items: center;
+    border-radius: 14px;
+    background: #fff7ed;
+    font-size: 25px;
+  }
+
+  .module-content {
+    flex: 1;
+  }
+
+  .module-content h3 {
+    margin: 0 0 10px;
+    color: #1e293b;
+    font-size: 19px;
+  }
+
+  .module-content p {
+    margin: 0;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .module-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    width: fit-content;
+    color: #ea5b0c;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .module-link:hover {
+    color: #c94c08;
+  }
+
+  .module-link:focus-visible {
+    outline: 2px solid #ea5b0c;
+    outline-offset: 4px;
+  }
+
+  .empty-modules {
+    padding: 24px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    color: #64748b;
+  }
+
+  .profile-card {
+    padding: 28px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
   }
 
   .session-status {
+    margin: 20px 0 0;
     color: #15803d;
+    font-size: 13px;
+  }
+
+  .error-card {
+    max-width: 560px;
+    margin: 60px auto;
+    padding: 32px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+  }
+
+  .error-card p {
+    color: #64748b;
     line-height: 1.6;
   }
+
   .retry-button {
-    width: 100%;
     min-height: 46px;
-    padding: 12px 16px;
+    padding: 12px 20px;
     border: 0;
     border-radius: 8px;
     background: #ea5b0c;
     color: #fff;
     font-weight: 700;
+    cursor: pointer;
   }
 
   .retry-button:hover {
     background: #c94c08;
   }
 
-  .retry-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.65;
+  .retry-button:focus-visible {
+    outline: 2px solid #ea5b0c;
+    outline-offset: 3px;
   }
 
-  .dashboard-card p {
-    line-height: 1.6;
+  @media (max-width: 600px) {
+    .dashboard {
+      width: min(100% - 32px, 1100px);
+      padding: 28px 0 48px;
+    }
+
+    .dashboard-content {
+      gap: 28px;
+    }
+
+    .welcome-section {
+      padding: 24px;
+    }
+
+    .module-card,
+    .profile-card {
+      padding: 22px;
+    }
   }
 </style>
