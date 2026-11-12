@@ -16,83 +16,93 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     >
       Verificando tu sesión...
     </p>
-
     <!-- Error al verificar la sesión -->
     <div id="session-error" class="session-error" hidden>
       <h2>No pudimos verificar tu sesión</h2>
-
       <p>
         Ocurrió un problema al comunicarnos con el servidor. Inténtalo
         nuevamente.
       </p>
-
       <button id="retry-session" type="button">
         Reintentar
       </button>
     </div>
-
     <!-- Contenido protegido -->
     <div id="tickets-content" hidden>
       <div class="tickets-container">
         <header class="tickets-header">
           <span class="eyebrow">MIS PARTICIPACIONES</span>
-
           <h1>Mis tickets</h1>
-
           <p>
             Registra tus comprobantes de compra para participar en la campaña.
           </p>
         </header>
-
         <div class="tickets-card">
           <div class="card-heading">
             <h2>Subir comprobante</h2>
-
             <p>
               Selecciona una fotografía o archivo PDF de tu ticket de compra.
             </p>
           </div>
-
-          <div class="upload-area">
+          <div id="upload-area" class="upload-area">
             <div class="upload-icon" aria-hidden="true">
-              ↑
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="34"
+                height="34"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 16V4" />
+                <path d="m7 9 5-5 5 5" />
+                <path d="M20 16.6A5 5 0 0 0 18 7h-1.3A7 7 0 1 0 4 16.2" />
+                <path d="M8 20h8" />
+              </svg>
             </div>
-
-            <p class="upload-title">Selecciona tu comprobante</p>
-
+            <h3 class="upload-title">Sube tu comprobante</h3>
+            <p class="upload-subtitle">
+              Arrastra y suelta tu archivo aquí o selecciónalo desde tu
+              dispositivo.
+            </p>
             <input
               id="ticket-file"
+              class="file-input"
               type="file"
               accept=".jpg,.jpeg,.png,.pdf"
+              aria-label="Seleccionar comprobante de compra"
               aria-describedby="file-requirements file-error"
             />
-
+            <label for="ticket-file" class="select-file-button">
+              Seleccionar archivo
+            </label>
             <p id="file-requirements" class="upload-description">
-              Formatos permitidos: JPG, PNG y PDF. Tamaño máximo: 10 MB.
+              Formatos permitidos: JPG, PNG y PDF · Máximo 10 MB
             </p>
-
             <p id="file-error" class="file-error" role="alert" hidden></p>
-
-            <!-- Vista previa del comprobante -->
             <div id="file-preview" class="file-preview" hidden>
-              <img
-                id="preview-image"
-                alt="Vista previa del comprobante seleccionado"
-                hidden
-              />
-
-              <p id="preview-pdf" class="preview-pdf" hidden>
-                Archivo PDF seleccionado
-              </p>
-
-              <p id="selected-filename" class="selected-filename"></p>
-
-              <button id="remove-file" type="button" class="remove-button">
-                Quitar archivo
-              </button>
+              <div class="preview-content">
+                <img
+                  id="preview-image"
+                  alt="Vista previa del comprobante seleccionado"
+                  hidden
+                />
+                <p id="preview-pdf" class="preview-pdf" hidden>
+                  Archivo PDF seleccionado
+                </p>
+                <div class="preview-details">
+                  <p id="selected-filename" class="selected-filename"></p>
+                  <span class="preview-status">Listo para registrar</span>
+                </div>
+                <button id="remove-file" type="button" class="remove-button">
+                  Quitar archivo
+                </button>
+              </div>
             </div>
           </div>
-
           <button
             id="submit-ticket"
             type="button"
@@ -109,7 +119,6 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
             hidden
           ></p>
         </div>
-
         <!-- Historial del participante -->
         <section class="history-card" aria-labelledby="history-title">
           <div class="history-heading">
@@ -119,7 +128,6 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
             </div>
             <div class="history-actions">
               <span id="history-count" class="history-count" hidden></span>
-
               <button
                 id="refresh-history"
                 type="button"
@@ -130,7 +138,6 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
               </button>
             </div>
           </div>
-
           <p
             id="history-loading"
             class="history-message"
@@ -159,7 +166,6 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     </div>
   </section>
 </ParticipantLayout>
-
 <script>
   import { ApiError } from "../lib/api";
   import { obtenerSesion } from "../lib/auth";
@@ -169,46 +175,31 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     type TicketHistorial,
     type TicketStatus,
   } from "../lib/tickets";
-
   const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
   const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "application/pdf"]);
-
   // Elementos de la sesión
   const sessionLoading =
     document.querySelector<HTMLElement>("#session-loading");
-
   const sessionError = document.querySelector<HTMLElement>("#session-error");
-
   const ticketsContent =
     document.querySelector<HTMLElement>("#tickets-content");
-
   const retrySessionButton =
     document.querySelector<HTMLButtonElement>("#retry-session");
-
   // Elementos del formulario
   const fileInput = document.querySelector<HTMLInputElement>("#ticket-file");
-
+  const uploadArea = document.querySelector<HTMLElement>("#upload-area");
   const fileError = document.querySelector<HTMLElement>("#file-error");
-
   const filePreview = document.querySelector<HTMLElement>("#file-preview");
-
   const previewImage =
     document.querySelector<HTMLImageElement>("#preview-image");
-
   const previewPdf = document.querySelector<HTMLElement>("#preview-pdf");
-
   const selectedFilename =
     document.querySelector<HTMLElement>("#selected-filename");
-
   const removeButton =
     document.querySelector<HTMLButtonElement>("#remove-file");
-
   const submitButton =
     document.querySelector<HTMLButtonElement>("#submit-ticket");
-
   const ticketResult = document.querySelector<HTMLElement>("#ticket-result");
-
   const historyLoading =
     document.querySelector<HTMLElement>("#history-loading");
   const historyEmpty = document.querySelector<HTMLElement>("#history-empty");
@@ -219,14 +210,13 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     document.querySelector<HTMLButtonElement>("#retry-history");
   const refreshHistoryButton =
     document.querySelector<HTMLButtonElement>("#refresh-history");
-
   let isSubmitting = false;
   let historyRequestId = 0;
-
   let previewUrl: string | null = null;
   let sessionVerified = false;
   let selectedFileValid = false;
-
+  let selectedFile: File | null = null;
+  let dragDepth = 0;
   /**
    * Actualiza el estado del botón.
    *
@@ -236,11 +226,9 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
    */
   function actualizarBoton(): void {
     if (!submitButton) return;
-
     submitButton.disabled =
       !sessionVerified || !selectedFileValid || isSubmitting;
   }
-
   /**
    * Controla la visibilidad del contenido
    * según el estado de la sesión.
@@ -249,22 +237,17 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     state: "loading" | "authenticated" | "error",
   ): void {
     sessionVerified = state === "authenticated";
-
     if (sessionLoading) {
       sessionLoading.hidden = state !== "loading";
     }
-
     if (sessionError) {
       sessionError.hidden = state !== "error";
     }
-
     if (ticketsContent) {
       ticketsContent.hidden = state !== "authenticated";
     }
-
     actualizarBoton();
   }
-
   /**
    * Comprueba la sesión utilizando
    * el endpoint existente /api/auth/me.
@@ -272,10 +255,8 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
   async function verificarSesionTickets(): Promise<void> {
     historyRequestId++;
     mostrarEstadoSesion("loading");
-
     try {
       await obtenerSesion();
-
       mostrarEstadoSesion("authenticated");
       void cargarHistorial();
     } catch (error) {
@@ -283,11 +264,9 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
         window.location.replace("/login");
         return;
       }
-
       mostrarEstadoSesion("error");
     }
   }
-
   /**
    * Libera la URL temporal utilizada
    * para mostrar imágenes.
@@ -298,87 +277,67 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
       previewUrl = null;
     }
   }
-
   /**
    * Limpia la vista previa y restablece
    * el estado del archivo.
    */
   function limpiarVistaPrevia(): void {
     liberarVistaPrevia();
-
     selectedFileValid = false;
-
+    selectedFile = null;
     if (previewImage) {
       previewImage.hidden = true;
       previewImage.removeAttribute("src");
     }
-
     if (previewPdf) {
       previewPdf.hidden = true;
     }
-
     if (selectedFilename) {
       selectedFilename.textContent = "";
     }
-
     if (filePreview) {
       filePreview.hidden = true;
     }
-
     actualizarBoton();
   }
-
   /**
    * Muestra los errores de validación
    * del archivo seleccionado.
    */
   function mostrarErrorArchivo(message: string): void {
     if (!fileError) return;
-
     fileError.textContent = message;
     fileError.hidden = false;
   }
-
   function limpiarErrorArchivo(): void {
     if (!fileError) return;
-
     fileError.textContent = "";
     fileError.hidden = true;
   }
-
   /**
    * Valida y muestra el comprobante
    * seleccionado por el participante.
    */
-  function procesarArchivoSeleccionado(): void {
+  function procesarArchivoSeleccionado(file: File | null): void {
     limpiarVistaPrevia();
     limpiarErrorArchivo();
     limpiarResultado();
-
-    const file = fileInput?.files?.[0];
-
     if (!file) return;
-
     if (!ALLOWED_TYPES.has(file.type)) {
       mostrarErrorArchivo("Selecciona un archivo JPG, PNG o PDF.");
-
       if (fileInput) fileInput.value = "";
       return;
     }
-
     if (file.size === 0 || file.size > MAX_FILE_SIZE) {
       mostrarErrorArchivo(
         "El archivo debe tener un tamaño mayor a 0 y máximo de 10 MB.",
       );
-
       if (fileInput) fileInput.value = "";
       return;
     }
-
     if (selectedFilename) {
       selectedFilename.textContent = file.name;
     }
-
     if (file.type === "application/pdf") {
       if (previewPdf) {
         previewPdf.hidden = false;
@@ -388,31 +347,25 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
       previewImage.src = previewUrl;
       previewImage.hidden = false;
     }
-
     if (filePreview) {
       filePreview.hidden = false;
     }
-
+    selectedFile = file;
     selectedFileValid = true;
     actualizarBoton();
   }
-
   function mostrarResultado(message: string, type: "success" | "error"): void {
     if (!ticketResult) return;
-
     ticketResult.textContent = message;
     ticketResult.dataset.type = type;
     ticketResult.hidden = false;
   }
-
   function limpiarResultado(): void {
     if (!ticketResult) return;
-
     ticketResult.textContent = "";
     ticketResult.hidden = true;
     delete ticketResult.dataset.type;
   }
-
   const STATUS_LABELS: Record<TicketStatus, string> = {
     pending: "Pendiente",
     processing: "En procesamiento",
@@ -420,7 +373,6 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     rejected: "Rechazado",
     requires_review: "En revisión",
   };
-
   function mostrarEstadoHistorial(
     state: "loading" | "empty" | "error" | "loaded",
   ): void {
@@ -435,7 +387,6 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
         state === "loading" ? "Actualizando..." : "Actualizar historial";
     }
   }
-
   function formatearFecha(value: string): string {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "Fecha no disponible";
@@ -445,45 +396,35 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
       timeZone: "America/Mexico_City",
     }).format(date);
   }
-
   function renderizarHistorial(tickets: TicketHistorial[]): void {
     if (!historyList || !historyCount) return;
     historyList.replaceChildren();
-
     for (const ticket of tickets) {
       const item = document.createElement("li");
       item.className = "history-item";
-
       const info = document.createElement("div");
       info.className = "history-info";
-
       const filename = document.createElement("strong");
       filename.className = "history-filename";
       filename.textContent = ticket.originalFilename;
-
       const meta = document.createElement("span");
       meta.className = "history-date";
       meta.textContent = formatearFecha(ticket.createdAt);
-
       const badge = document.createElement("span");
       badge.className = "status-badge";
       badge.dataset.status = ticket.status;
       badge.textContent = STATUS_LABELS[ticket.status] ?? "Estado desconocido";
-
       info.append(filename, meta);
       item.append(info, badge);
       historyList.append(item);
     }
-
     historyCount.textContent = `${tickets.length} ${tickets.length === 1 ? "ticket" : "tickets"}`;
     mostrarEstadoHistorial(tickets.length === 0 ? "empty" : "loaded");
   }
-
   async function cargarHistorial(): Promise<void> {
     if (!sessionVerified) return;
     const requestId = ++historyRequestId;
     mostrarEstadoHistorial("loading");
-
     try {
       const response = await obtenerHistorialTickets();
       if (requestId !== historyRequestId) return;
@@ -497,47 +438,81 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
       mostrarEstadoHistorial("error");
     }
   }
-
   // Eventos del formulario
-  fileInput?.addEventListener("change", procesarArchivoSeleccionado);
+  fileInput?.addEventListener("change", () => {
+    procesarArchivoSeleccionado(fileInput.files?.[0] ?? null);
+  });
 
+  // Arrastrar y soltar archivos sin alterar el registro existente.
+  uploadArea?.addEventListener("dragenter", (event: DragEvent) => {
+    event.preventDefault();
+    if (isSubmitting) return;
+    dragDepth++;
+    uploadArea.classList.add("is-dragging");
+  });
+
+  uploadArea?.addEventListener("dragover", (event: DragEvent) => {
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = isSubmitting ? "none" : "copy";
+    }
+  });
+
+  uploadArea?.addEventListener("dragleave", (event: DragEvent) => {
+    event.preventDefault();
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) uploadArea.classList.remove("is-dragging");
+  });
+
+  uploadArea?.addEventListener("drop", (event: DragEvent) => {
+    event.preventDefault();
+    dragDepth = 0;
+    uploadArea.classList.remove("is-dragging");
+    if (isSubmitting) return;
+    const files = event.dataTransfer?.files;
+    if (!files?.length) return;
+    if (files.length !== 1) {
+      limpiarVistaPrevia();
+      limpiarErrorArchivo();
+      limpiarResultado();
+      if (fileInput) fileInput.value = "";
+      mostrarErrorArchivo("Arrastra un solo archivo a la vez.");
+      return;
+    }
+    if (fileInput) fileInput.value = "";
+    procesarArchivoSeleccionado(files[0]);
+  });
+
+  // Evita que soltar un archivo fuera del área abra una pestaña nueva.
+  window.addEventListener("dragover", (event) => event.preventDefault());
+  window.addEventListener("drop", (event) => event.preventDefault());
   removeButton?.addEventListener("click", () => {
     if (fileInput) {
       fileInput.value = "";
     }
-
     limpiarErrorArchivo();
     limpiarVistaPrevia();
     limpiarResultado();
   });
-
   submitButton?.addEventListener("click", async () => {
     if (!sessionVerified || !selectedFileValid || isSubmitting) {
       return;
     }
-
-    const file = fileInput?.files?.[0];
-
+    const file = selectedFile;
     if (!file || !submitButton) return;
-
     isSubmitting = true;
     actualizarBoton();
     limpiarResultado();
-
     submitButton.textContent = "Registrando ticket...";
-
     try {
       const response = await registrarTicket(file);
-
       mostrarResultado(
         response.message || "El comprobante se registró correctamente.",
         "success",
       );
-
       if (fileInput) {
         fileInput.value = "";
       }
-
       limpiarVistaPrevia();
       await cargarHistorial();
     } catch (error) {
@@ -546,7 +521,6 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
           window.location.replace("/login");
           return;
         }
-
         mostrarResultado(error.message, "error");
       } else {
         mostrarResultado(
@@ -560,61 +534,50 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
       actualizarBoton();
     }
   });
-
   retryHistoryButton?.addEventListener("click", () => {
     void cargarHistorial();
   });
   refreshHistoryButton?.addEventListener("click", () => {
     void cargarHistorial();
   });
-
   // Permite reintentar la verificación de sesión
   retrySessionButton?.addEventListener("click", () => {
     void verificarSesionTickets();
   });
-
   // Liberar recursos al abandonar la página
   window.addEventListener("pagehide", liberarVistaPrevia);
-
   // Verificar la sesión al entrar
   void verificarSesionTickets();
 </script>
-
 <style>
   .tickets-page {
     min-height: calc(100vh - 76px);
     padding: clamp(24px, 5vw, 56px) 24px;
   }
-
   .tickets-container {
     width: 100%;
     max-width: 900px;
     margin: 0 auto;
   }
-
   .tickets-header {
     margin-bottom: 32px;
   }
-
   .eyebrow {
     color: #ea5b0c;
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.12em;
   }
-
   h1 {
     margin: 12px 0;
     color: #0f172a;
     font-size: clamp(2rem, 5vw, 2.75rem);
   }
-
   .tickets-header p,
   .card-heading p {
     color: #64748b;
     line-height: 1.6;
   }
-
   .tickets-card {
     padding: clamp(24px, 5vw, 40px);
     border: 1px solid #e2e8f0;
@@ -622,108 +585,209 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     background: #fff;
     box-shadow: 0 12px 40px rgb(15 23 42 / 5%);
   }
-
   .card-heading {
     margin-bottom: 24px;
   }
-
   h2 {
     margin: 0 0 8px;
     color: #0f172a;
     font-size: 22px;
   }
-
   .card-heading p {
     margin: 0;
   }
-
   .upload-area {
-    padding: 36px 24px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 44px 28px;
     border: 2px dashed #cbd5e1;
-    border-radius: 12px;
-    background: #f8fafc;
+    border-radius: 20px;
+    background: linear-gradient(145deg, #fffaf6 0%, #f8fafc 55%, #ffffff 100%);
     text-align: center;
+    transition:
+      border-color 0.25s ease,
+      background 0.25s ease,
+      box-shadow 0.25s ease,
+      transform 0.25s ease;
   }
-
+  .upload-area.is-dragging {
+    border-color: #ea5b0c;
+    background: #fff7ed;
+    box-shadow: 0 0 0 4px rgb(234 91 12 / 10%);
+    transform: translateY(-2px);
+  }
   .upload-icon {
     display: grid;
-    width: 56px;
-    height: 56px;
-    margin: 0 auto 16px;
+    width: 76px;
+    height: 76px;
+    margin-bottom: 20px;
     place-items: center;
-    border-radius: 50%;
-    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 22px;
+    background: #fff0e5;
     color: #ea5b0c;
-    font-size: 32px;
+    box-shadow: 0 8px 20px rgb(234 91 12 / 8%);
+    transition:
+      transform 0.25s ease,
+      background-color 0.25s ease;
   }
-
+  .upload-area.is-dragging .upload-icon {
+    transform: translateY(-5px);
+    background: #ffedd5;
+  }
   .upload-title {
-    margin: 0 0 16px;
+    margin: 0 0 10px;
     color: #0f172a;
+    font-size: clamp(20px, 3vw, 24px);
     font-weight: 700;
+    line-height: 1.3;
   }
-
-  .upload-description {
-    margin: 16px 0 0;
+  /* Descripción */
+  .upload-subtitle {
+    max-width: 440px;
+    margin: 0 0 24px;
     color: #64748b;
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1.6;
   }
-
-  input[type="file"] {
-    width: 100%;
-    max-width: 320px;
-    color: #475569;
+  .file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
-
+  .select-file-button {
+    display: inline-flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 26px;
+    border-radius: 10px;
+    background: #ea5b0c;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+      background-color 0.2s ease,
+      box-shadow 0.2s ease,
+      transform 0.2s ease;
+  }
+  .select-file-button:hover {
+    background: #c94c08;
+    box-shadow: 0 8px 18px rgb(234 91 12 / 18%);
+    transform: translateY(-2px);
+  }
+  .file-input:focus-visible + .select-file-button {
+    outline: 3px solid #fdba74;
+    outline-offset: 4px;
+  }
+  /* Formatos permitidos */
+  .upload-description {
+    margin: 18px 0 0;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.6;
+  }
   .file-error {
     margin-top: 12px;
     color: #b91c1c;
     font-size: 14px;
     line-height: 1.5;
   }
-
+  /* Contenedor de vista previa */
   .file-preview {
-    margin-top: 24px;
+    width: 100%;
+    margin-top: 28px;
     padding: 20px;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    background: #fff;
+    border: 1px solid #fed7aa;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 6px 20px rgb(15 23 42 / 4%);
   }
-
+  /* Información del archivo */
+  .preview-content {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 18px;
+    min-width: 0;
+  }
+  /* Miniatura de imagen */
   #preview-image {
     display: block;
-    max-width: 100%;
-    max-height: 320px;
-    margin: 0 auto 16px;
-    border-radius: 8px;
+    width: 90px;
+    height: 90px;
+    flex-shrink: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
     object-fit: contain;
   }
-
+  /* Identificador de PDF */
   .preview-pdf {
+    display: grid;
+    width: 90px;
+    min-height: 90px;
+    flex-shrink: 0;
+    place-items: center;
+    padding: 10px;
+    border-radius: 12px;
+    background: #fff7ed;
     color: #ea5b0c;
+    font-size: 13px;
     font-weight: 700;
   }
-
+  /* Detalles del archivo */
+  .preview-details {
+    min-width: 0;
+    flex: 1;
+    text-align: left;
+  }
   .selected-filename {
-    overflow-wrap: anywhere;
-    color: #334155;
+    margin: 0 0 8px;
+    color: #0f172a;
     font-size: 14px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
   }
-
+  /* Indicador de archivo válido */
+  .preview-status {
+    display: inline-flex;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: #f0fdf4;
+    color: #166534;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  /* Eliminar archivo */
   .remove-button {
-    padding: 8px 14px;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    background: #fff;
-    color: #334155;
+    flex-shrink: 0;
+    min-height: 38px;
+    margin-top: 0;
+    padding: 9px 16px;
+    border: 1px solid #fecaca;
+    border-radius: 9px;
+    background: #fff7f7;
+    color: #b91c1c;
+    font-size: 13px;
+    font-weight: 700;
     cursor: pointer;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease;
   }
-
   .remove-button:hover {
-    background: #f1f5f9;
+    border-color: #fca5a5;
+    background: #fee2e2;
   }
-
   .submit-button {
     width: 100%;
     min-height: 48px;
@@ -735,13 +799,11 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     color: #fff;
     font-weight: 700;
   }
-
   .session-message {
     padding: 48px 24px;
     color: #64748b;
     text-align: center;
   }
-
   .session-error {
     width: min(100%, 560px);
     margin: 48px auto;
@@ -751,17 +813,14 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     background: #fff;
     text-align: center;
   }
-
   .session-error h2 {
     margin-top: 0;
     color: #0f172a;
   }
-
   .session-error p {
     color: #64748b;
     line-height: 1.6;
   }
-
   #retry-session {
     min-height: 44px;
     margin-top: 16px;
@@ -773,11 +832,9 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     font-weight: 700;
     cursor: pointer;
   }
-
   #retry-session:hover {
     background: #c94c08;
   }
-
   .history-card {
     margin-top: 24px;
     padding: clamp(24px, 5vw, 40px);
@@ -786,7 +843,6 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     background: #fff;
     box-shadow: 0 12px 40px rgb(15 23 42 / 5%);
   }
-
   .history-heading {
     display: flex;
     justify-content: space-between;
@@ -794,7 +850,6 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     gap: 16px;
     margin-bottom: 24px;
   }
-
   .history-heading h2 {
     margin-bottom: 8px;
   }
@@ -812,14 +867,12 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     font-size: 13px;
     font-weight: 600;
   }
-
   .history-actions {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 12px;
   }
-
   .refresh-button {
     min-height: 36px;
     padding: 8px 14px;
@@ -834,17 +887,14 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
       background-color 0.2s ease,
       border-color 0.2s ease;
   }
-
   .refresh-button:hover:not(:disabled) {
     background: #ffedd5;
     border-color: #fdba74;
   }
-
   .refresh-button:focus-visible {
     outline: 2px solid #ea5b0c;
     outline-offset: 3px;
   }
-
   .refresh-button:disabled {
     cursor: not-allowed;
     opacity: 0.6;
@@ -854,13 +904,11 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     padding: 16px 0;
     color: #64748b;
   }
-
   :global(.history-list) {
     margin: 0;
     padding: 0;
     list-style: none;
   }
-
   :global(.history-item) {
     display: flex;
     align-items: center;
@@ -869,25 +917,21 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     padding: 18px 0;
     border-top: 1px solid #e2e8f0;
   }
-
   :global(.history-info) {
     display: grid;
     min-width: 0;
     flex: 1;
     gap: 6px;
   }
-
   :global(.history-filename) {
     color: #0f172a;
     font-weight: 700;
     overflow-wrap: anywhere;
   }
-
   :global(.history-date) {
     color: #64748b;
     font-size: 13px;
   }
-
   :global(.status-badge) {
     flex-shrink: 0;
     display: inline-flex;
@@ -901,32 +945,26 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     font-weight: 700;
     white-space: nowrap;
   }
-
   :global(.status-badge[data-status="pending"]) {
     background: #fff7ed;
     color: #9a3412;
   }
-
   :global(.status-badge[data-status="processing"]) {
     background: #eff6ff;
     color: #1d4ed8;
   }
-
   :global(.status-badge[data-status="approved"]) {
     background: #f0fdf4;
     color: #166534;
   }
-
   :global(.status-badge[data-status="rejected"]) {
     background: #fef2f2;
     color: #b91c1c;
   }
-
   :global(.status-badge[data-status="requires_review"]) {
     background: #fefce8;
     color: #854d0e;
   }
-
   .history-error {
     color: #b91c1c;
   }
@@ -941,7 +979,6 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     color: #334155;
     cursor: pointer;
   }
-
   /* Respeta los elementos ocultos */
   #tickets-content[hidden],
   #session-loading[hidden],
@@ -957,7 +994,9 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
   #history-count[hidden] {
     display: none;
   }
-
+  .upload-area [hidden] {
+    display: none !important;
+  }
   .ticket-result {
     margin: 16px 0 0;
     padding: 14px 16px;
@@ -965,48 +1004,68 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     font-size: 14px;
     line-height: 1.6;
   }
-
   .ticket-result[data-type="success"] {
     border: 1px solid #bbf7d0;
     background: #f0fdf4;
     color: #166534;
   }
-
   .ticket-result[data-type="error"] {
     border: 1px solid #fecaca;
     background: #fef2f2;
     color: #b91c1c;
   }
-
   .ticket-result[hidden] {
     display: none;
   }
-
   .submit-button:disabled {
     cursor: not-allowed;
     opacity: 0.5;
   }
-
   @media (max-width: 480px) {
     .tickets-page {
       padding: 24px 16px;
     }
-
     .upload-area {
-      padding: 28px 16px;
+      padding: 32px 18px;
+      border-radius: 16px;
     }
-
+    .upload-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+    }
+    .upload-subtitle {
+      font-size: 14px;
+    }
+    .select-file-button {
+      width: 100%;
+      max-width: 280px;
+    }
+    .file-preview {
+      padding: 16px;
+    }
+    .preview-content {
+      flex-direction: column;
+      gap: 12px;
+    }
+    .preview-details {
+      width: 100%;
+      text-align: center;
+    }
+    #preview-image,
+    .preview-pdf {
+      width: 80px;
+      height: 80px;
+    }
     .history-heading,
     :global(.history-item) {
       align-items: flex-start;
       flex-direction: column;
     }
-
     .history-actions {
       width: 100%;
       justify-content: space-between;
     }
-
     :global(.history-info) {
       width: 100%;
     }
