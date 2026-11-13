@@ -39,6 +39,49 @@ const availableModules = getParticipantNavigation(
         </p>
       </section>
 
+      <section class="stats-section" aria-labelledby="stats-title">
+        <div class="section-heading">
+          <h2 id="stats-title">Resumen de mis tickets</h2>
+          <p>Consulta rápidamente el estado de tus participaciones.</p>
+        </div>
+
+        <div class="stats-card">
+          <p id="stats-loading" class="stats-message" role="status">
+            Cargando estadísticas...
+          </p>
+
+          <div id="stats-error" class="stats-error" role="alert" hidden>
+            <p>No pudimos cargar las estadísticas de tus tickets.</p>
+            <button id="retry-stats" type="button" class="retry-stats-button">
+              Reintentar
+            </button>
+          </div>
+
+          <div id="stats-grid" class="stats-grid" hidden>
+            <article class="stat-item">
+              <span class="stat-label">Tickets registrados</span>
+              <strong id="stat-total" class="stat-value stat-total">
+                0
+              </strong>
+            </article>
+
+            <article class="stat-item">
+              <span class="stat-label">Pendientes</span>
+              <strong id="stat-pending" class="stat-value stat-pending">
+                0
+              </strong>
+            </article>
+          </div>
+
+          <div class="stats-footer">
+            <a href="/tickets" class="stats-link">
+              Ver detalles de mis tickets
+              <span aria-hidden="true">→</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
       <section class="modules-section" aria-labelledby="modules-title">
         <div class="section-heading">
           <h2 id="modules-title">Mis actividades</h2>
@@ -118,6 +161,8 @@ const availableModules = getParticipantNavigation(
 <script>
   import { ApiError } from "../lib/api";
   import { obtenerSesion, cerrarSesion } from "../lib/auth";
+  import { obtenerHistorialTickets } from "../lib/tickets";
+  import { calcularEstadisticasTickets } from "../lib/ticketStats";
 
   const sessionLoading =
     document.querySelector<HTMLElement>("#session-loading");
@@ -151,6 +196,12 @@ const availableModules = getParticipantNavigation(
   const retryButton =
     document.querySelector<HTMLButtonElement>("#retry-button");
 
+  const statsLoading = document.querySelector<HTMLElement>("#stats-loading");
+  const statsError = document.querySelector<HTMLElement>("#stats-error");
+  const statsGrid = document.querySelector<HTMLElement>("#stats-grid");
+  const retryStatsButton =
+    document.querySelector<HTMLButtonElement>("#retry-stats");
+
   function mostrarCargando(): void {
     if (sessionLoading) sessionLoading.hidden = false;
     if (dashboardContent) dashboardContent.hidden = true;
@@ -167,6 +218,38 @@ const availableModules = getParticipantNavigation(
     if (sessionLoading) sessionLoading.hidden = true;
     if (dashboardContent) dashboardContent.hidden = true;
     if (sessionError) sessionError.hidden = false;
+  }
+
+  async function cargarEstadisticas(): Promise<void> {
+    if (statsLoading) statsLoading.hidden = false;
+    if (statsError) statsError.hidden = true;
+    if (statsGrid) statsGrid.hidden = true;
+    if (retryStatsButton) retryStatsButton.disabled = true;
+
+    try {
+      const response = await obtenerHistorialTickets();
+      const stats = calcularEstadisticasTickets(response.data);
+
+      const valores: Record<string, number> = {
+        "stat-total": stats.total,
+        "stat-pending": stats.pending,
+      };
+
+      for (const [id, value] of Object.entries(valores)) {
+        const element = document.getElementById(id);
+
+        if (element) {
+          element.textContent = String(value);
+        }
+      }
+
+      if (statsGrid) statsGrid.hidden = false;
+    } catch {
+      if (statsError) statsError.hidden = false;
+    } finally {
+      if (statsLoading) statsLoading.hidden = true;
+      if (retryStatsButton) retryStatsButton.disabled = false;
+    }
   }
 
   async function verificarSesion(): Promise<void> {
@@ -196,6 +279,7 @@ const availableModules = getParticipantNavigation(
       sessionStatus?.classList.remove("is-error");
 
       mostrarDashboard();
+      void cargarEstadisticas();
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         window.location.replace("/login");
@@ -241,6 +325,10 @@ const availableModules = getParticipantNavigation(
 
   retryButton?.addEventListener("click", () => {
     void verificarSesion();
+  });
+
+  retryStatsButton?.addEventListener("click", () => {
+    void cargarEstadisticas();
   });
 
   void verificarSesion();
@@ -425,6 +513,151 @@ const availableModules = getParticipantNavigation(
   .retry-button:focus-visible {
     outline: 2px solid #ea5b0c;
     outline-offset: 3px;
+  }
+
+  .stats-card {
+    padding: 24px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+  }
+
+  .stats-message {
+    margin: 0;
+    padding: 20px 0;
+    color: #64748b;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .stats-grid[hidden],
+  .stats-message[hidden],
+  .stats-error[hidden] {
+    display: none;
+  }
+
+  .stat-item {
+    display: flex;
+    min-width: 0;
+    min-height: 112px;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+  }
+
+  .stat-label {
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .stat-value {
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .stat-total {
+    color: #ea5b0c;
+  }
+
+  .stat-pending {
+    color: #b45309;
+  }
+
+  .stats-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .stats-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #ea5b0c;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .stats-link:hover {
+    color: #c94c08;
+  }
+
+  .stats-link:focus-visible {
+    outline: 2px solid #ea5b0c;
+    outline-offset: 4px;
+  }
+
+  .stats-error {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .stats-error p {
+    margin: 0;
+    color: #b91c1c;
+    font-size: 14px;
+  }
+
+  .retry-stats-button {
+    min-height: 40px;
+    padding: 10px 16px;
+    border: 1px solid #fed7aa;
+    border-radius: 8px;
+    background: #fff7ed;
+    color: #c2410c;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .retry-stats-button:hover {
+    background: #ffedd5;
+  }
+
+  .retry-stats-button:focus-visible {
+    outline: 2px solid #ea5b0c;
+    outline-offset: 3px;
+  }
+
+  @media (max-width: 700px) {
+    .stats-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 400px) {
+    .stats-card {
+      padding: 16px;
+    }
+
+    .stats-grid {
+      gap: 10px;
+    }
+
+    .stat-item {
+      min-height: 100px;
+      padding: 14px;
+    }
+
+    .stat-value {
+      font-size: 26px;
+    }
   }
 
   @media (max-width: 600px) {

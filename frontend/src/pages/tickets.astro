@@ -37,6 +37,94 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
             Registra tus comprobantes de compra para participar en la campaña.
           </p>
         </header>
+
+        <section class="ticket-stats" aria-labelledby="ticket-stats-title">
+          <div class="ticket-stats-heading">
+            <h2 id="ticket-stats-title">Resumen de mis tickets</h2>
+            <p>Consulta el estado de tus comprobantes registrados.</p>
+          </div>
+
+          <div class="ticket-stats-card">
+            <p
+              id="ticket-stats-loading"
+              class="ticket-stats-message"
+              role="status"
+              aria-live="polite"
+            >
+              Cargando estadísticas...
+            </p>
+
+            <p
+              id="ticket-stats-error"
+              class="ticket-stats-message ticket-stats-error"
+              role="status"
+              hidden
+            >
+              No pudimos actualizar las estadísticas. Intenta actualizar el
+              historial.
+            </p>
+
+            <div id="ticket-stats-grid" class="ticket-stats-grid" hidden>
+              <article class="ticket-stat-item">
+                <span class="ticket-stat-label">Tickets registrados</span>
+                <strong id="ticket-stat-total" class="ticket-stat-value total">
+                  0
+                </strong>
+              </article>
+
+              <article class="ticket-stat-item">
+                <span class="ticket-stat-label">Pendientes</span>
+                <strong
+                  id="ticket-stat-pending"
+                  class="ticket-stat-value pending"
+                >
+                  0
+                </strong>
+              </article>
+
+              <article class="ticket-stat-item">
+                <span class="ticket-stat-label">En procesamiento</span>
+                <strong
+                  id="ticket-stat-processing"
+                  class="ticket-stat-value processing"
+                >
+                  0
+                </strong>
+              </article>
+
+              <article class="ticket-stat-item">
+                <span class="ticket-stat-label">Aprobados</span>
+                <strong
+                  id="ticket-stat-approved"
+                  class="ticket-stat-value approved"
+                >
+                  0
+                </strong>
+              </article>
+
+              <article class="ticket-stat-item">
+                <span class="ticket-stat-label">Rechazados</span>
+                <strong
+                  id="ticket-stat-rejected"
+                  class="ticket-stat-value rejected"
+                >
+                  0
+                </strong>
+              </article>
+
+              <article class="ticket-stat-item">
+                <span class="ticket-stat-label">En revisión</span>
+                <strong
+                  id="ticket-stat-requires-review"
+                  class="ticket-stat-value review"
+                >
+                  0
+                </strong>
+              </article>
+            </div>
+          </div>
+        </section>
+
         <div class="tickets-card">
           <div class="card-heading">
             <h2>Subir comprobante</h2>
@@ -169,6 +257,7 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
 <script>
   import { ApiError } from "../lib/api";
   import { obtenerSesion } from "../lib/auth";
+  import { calcularEstadisticasTickets } from "../lib/ticketStats";
   import {
     registrarTicket,
     obtenerHistorialTickets,
@@ -210,6 +299,17 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     document.querySelector<HTMLButtonElement>("#retry-history");
   const refreshHistoryButton =
     document.querySelector<HTMLButtonElement>("#refresh-history");
+
+  const ticketStatsLoading = document.querySelector<HTMLElement>(
+    "#ticket-stats-loading",
+  );
+
+  const ticketStatsError = document.querySelector<HTMLElement>(
+    "#ticket-stats-error",
+  );
+
+  const ticketStatsGrid =
+    document.querySelector<HTMLElement>("#ticket-stats-grid");
   let isSubmitting = false;
   let historyRequestId = 0;
   let previewUrl: string | null = null;
@@ -437,6 +537,45 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     return icon;
   }
 
+  function mostrarEstadoEstadisticas(
+    state: "loading" | "loaded" | "error",
+  ): void {
+    if (ticketStatsLoading) {
+      ticketStatsLoading.hidden = state !== "loading";
+    }
+
+    if (ticketStatsError) {
+      ticketStatsError.hidden = state !== "error";
+    }
+
+    if (ticketStatsGrid) {
+      ticketStatsGrid.hidden = state !== "loaded";
+    }
+  }
+
+  function actualizarEstadisticas(tickets: TicketHistorial[]): void {
+    const stats = calcularEstadisticasTickets(tickets);
+
+    const valores: Record<string, number> = {
+      "ticket-stat-total": stats.total,
+      "ticket-stat-pending": stats.pending,
+      "ticket-stat-processing": stats.processing,
+      "ticket-stat-approved": stats.approved,
+      "ticket-stat-rejected": stats.rejected,
+      "ticket-stat-requires-review": stats.requires_review,
+    };
+
+    for (const [id, value] of Object.entries(valores)) {
+      const element = document.getElementById(id);
+
+      if (element) {
+        element.textContent = String(value);
+      }
+    }
+
+    mostrarEstadoEstadisticas("loaded");
+  }
+
   function renderizarHistorial(tickets: TicketHistorial[]): void {
     if (!historyList || !historyCount) return;
     historyList.replaceChildren();
@@ -475,10 +614,12 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     if (!sessionVerified) return;
     const requestId = ++historyRequestId;
     mostrarEstadoHistorial("loading");
+    mostrarEstadoEstadisticas("loading");
     try {
       const response = await obtenerHistorialTickets();
       if (requestId !== historyRequestId) return;
       renderizarHistorial(response.data);
+      actualizarEstadisticas(response.data);
     } catch (error) {
       if (requestId !== historyRequestId) return;
       if (error instanceof ApiError && error.status === 401) {
@@ -486,6 +627,7 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
         return;
       }
       mostrarEstadoHistorial("error");
+      mostrarEstadoEstadisticas("error");
     }
   }
   // Eventos del formulario
@@ -1115,6 +1257,133 @@ import ParticipantLayout from "../layouts/ParticipantLayout.astro";
     cursor: not-allowed;
     opacity: 0.5;
   }
+
+  .ticket-stats {
+    margin-bottom: 24px;
+  }
+
+  .ticket-stats-heading {
+    margin-bottom: 20px;
+  }
+
+  .ticket-stats-heading h2 {
+    margin: 0 0 8px;
+    color: #0f172a;
+    font-size: 22px;
+  }
+
+  .ticket-stats-heading p {
+    margin: 0;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .ticket-stats-card {
+    padding: 24px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+  }
+
+  .ticket-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .ticket-stat-item {
+    display: flex;
+    min-width: 0;
+    min-height: 112px;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+  }
+
+  .ticket-stat-label {
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .ticket-stat-value {
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .ticket-stat-value.total {
+    color: #ea5b0c;
+  }
+
+  .ticket-stat-value.pending {
+    color: #b45309;
+  }
+
+  .ticket-stat-value.processing {
+    color: #2563eb;
+  }
+
+  .ticket-stat-value.approved {
+    color: #15803d;
+  }
+
+  .ticket-stat-value.rejected {
+    color: #b91c1c;
+  }
+
+  .ticket-stat-value.review {
+    color: #a16207;
+  }
+
+  .ticket-stats-message {
+    margin: 0;
+    padding: 16px 0;
+    color: #64748b;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .ticket-stats-error {
+    color: #b91c1c;
+  }
+
+  #ticket-stats-loading[hidden],
+  #ticket-stats-error[hidden],
+  #ticket-stats-grid[hidden] {
+    display: none;
+  }
+
+  @media (max-width: 700px) {
+    .ticket-stats-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 400px) {
+    .ticket-stats-card {
+      padding: 16px;
+    }
+
+    .ticket-stats-grid {
+      gap: 10px;
+    }
+
+    .ticket-stat-item {
+      min-height: 100px;
+      padding: 14px;
+    }
+
+    .ticket-stat-value {
+      font-size: 26px;
+    }
+  }
+
   @media (max-width: 480px) {
     .tickets-page {
       padding: 24px 16px;
