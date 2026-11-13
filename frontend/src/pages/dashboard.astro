@@ -45,44 +45,42 @@ const availableModules = getParticipantNavigation(
           <p>Explora los módulos disponibles en esta campaña.</p>
         </div>
 
-        {
-          availableModules.length > 0 ? (
-            <div class="modules-grid">
-              {availableModules.map((module) => (
-                <article class="module-card">
-                  <div class="module-icon" aria-hidden="true">
-                    {module.id === "tickets" ? "🎟️" : "★"}
-                  </div>
+        {availableModules.length > 0 ? (
+          <div class="modules-grid">
+            {availableModules.map((module) => (
+              <article class="module-card">
+                <div class="module-icon" aria-hidden="true">
+                  {module.id === "tickets" ? "🎟️" : "★"}
+                </div>
 
-                  <div class="module-content">
-                    <h3>
-                      {module.id === "tickets"
-                        ? "Mis comprobantes"
-                        : module.label}
-                    </h3>
-
-                    <p>
-                      {module.id === "tickets"
-                        ? "Registra tus tickets de compra y consulta el estado de tus comprobantes."
-                        : "Accede a esta actividad de la campaña."}
-                    </p>
-                  </div>
-
-                  <a class="module-link" href={module.href}>
+                <div class="module-content">
+                  <h3>
                     {module.id === "tickets"
-                      ? "Ver mis tickets"
-                      : "Ir a la actividad"}
-                    <span aria-hidden="true">→</span>
-                  </a>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p class="empty-modules">
-              Por el momento no hay actividades disponibles.
-            </p>
-          )
-        }
+                      ? "Mis comprobantes"
+                      : module.label}
+                  </h3>
+
+                  <p>
+                    {module.id === "tickets"
+                      ? "Registra tus tickets de compra y consulta el estado de tus comprobantes."
+                      : "Accede a esta actividad de la campaña."}
+                  </p>
+                </div>
+
+                <a class="module-link" href={module.href}>
+                  {module.id === "tickets"
+                    ? "Ver mis tickets"
+                    : "Ir a la actividad"}
+                  <span aria-hidden="true">→</span>
+                </a>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p class="empty-modules">
+            Por el momento no hay actividades disponibles.
+          </p>
+        )}
       </section>
 
       <section class="profile-section" aria-labelledby="profile-title">
@@ -93,15 +91,6 @@ const availableModules = getParticipantNavigation(
 
         <div class="profile-card">
           <ParticipantProfile />
-
-          <p
-            id="session-status"
-            class="session-status"
-            role="status"
-            aria-live="polite"
-          >
-            Sesión activa.
-          </p>
         </div>
       </section>
     </div>
@@ -139,6 +128,14 @@ const availableModules = getParticipantNavigation(
   const sessionError = document.querySelector<HTMLElement>("#session-error");
 
   const sessionStatus = document.querySelector<HTMLElement>("#session-status");
+
+  const sessionStatusText = document.querySelector<HTMLElement>(
+    "#session-status-text",
+  );
+
+  const logoutButtonText = document.querySelector<HTMLElement>(
+    "#logout-button-text",
+  );
 
   const participantName =
     document.querySelector<HTMLElement>("#participant-name");
@@ -192,9 +189,11 @@ const availableModules = getParticipantNavigation(
           participant.full_name.trim().split(/\s+/)[0] || "participante";
       }
 
-      if (sessionStatus) {
-        sessionStatus.textContent = "Sesión activa.";
+      if (sessionStatusText) {
+        sessionStatusText.textContent = "Sesión activa.";
       }
+
+      sessionStatus?.classList.remove("is-error");
 
       mostrarDashboard();
     } catch (error) {
@@ -208,10 +207,12 @@ const availableModules = getParticipantNavigation(
   }
 
   logoutButton?.addEventListener("click", async () => {
-    if (!logoutButton) return;
+    if (!logoutButton || logoutButton.disabled) return;
 
     logoutButton.disabled = true;
-    logoutButton.textContent = "Cerrando sesión...";
+    if (logoutButtonText) {
+      logoutButtonText.textContent = "Cerrando sesión...";
+    }
 
     try {
       await cerrarSesion();
@@ -224,13 +225,17 @@ const availableModules = getParticipantNavigation(
 
       window.location.replace("/login");
     } catch {
-      if (sessionStatus) {
-        sessionStatus.textContent =
+      if (sessionStatusText) {
+        sessionStatusText.textContent =
           "No fue posible cerrar la sesión. Inténtalo nuevamente.";
       }
 
+      sessionStatus?.classList.add("is-error");
+
       logoutButton.disabled = false;
-      logoutButton.textContent = "Cerrar sesión";
+      if (logoutButtonText) {
+        logoutButtonText.textContent = "Cerrar sesión";
+      }
     }
   });
 
@@ -386,12 +391,6 @@ const availableModules = getParticipantNavigation(
     border: 1px solid #e2e8f0;
     border-radius: 16px;
     background: #fff;
-  }
-
-  .session-status {
-    margin: 20px 0 0;
-    color: #15803d;
-    font-size: 13px;
   }
 
   .error-card {
