@@ -8,6 +8,8 @@ import {
   type CreateTicketInput,
   type CreateTicketQuery,
   type ListParticipantTicketsQuery,
+  saveTicketOcrResult,
+  type SaveTicketOcrResultQuery,
 } from "./tickets.repository.js";
 
 const validInput: CreateTicketInput = {
@@ -73,6 +75,7 @@ test("Inserta un ticket con los parámetros esperados", async () => {
     createdAt,
   });
 });
+
 
 test("Conserva identificadores BIGINT como cadenas", async () => {
   const mockQuery: CreateTicketQuery = async () => ({
@@ -235,3 +238,111 @@ test(
     );
   },
 );
+
+test("Guarda el resultado OCR en el ticket indicado", async () => {
+  let capturedSql = "";
+  let capturedValues: readonly (string | number)[] = [];
+
+  const ocrData = {
+    id: 12345,
+    vendor: { name: "Comercio de prueba" },
+    total: 250,
+  };
+
+  const mockQuery: SaveTicketOcrResultQuery = async (
+    sql,
+    values,
+  ) => {
+    capturedSql = sql;
+    capturedValues = values;
+
+    return {
+      rows: [{ id: "100" }],
+    };
+  };
+
+  await saveTicketOcrResult(
+    {
+      ticketId: "100",
+      veryfiDocumentId: 12345,
+      ocrData,
+    },
+    mockQuery,
+  );
+
+  assert.match(capturedSql, /UPDATE tickets/);
+  assert.match(capturedSql, /ocr_data = \$2::jsonb/);
+  assert.match(capturedSql, /veryfi_document_id = \$3/);
+  assert.match(capturedSql, /WHERE id = \$1/);
+  assert.match(capturedSql, /status = 'pending'/);
+  assert.doesNotMatch(capturedSql, /SET\s+status\s*=/);
+
+  assert.deepEqual(capturedValues, [
+    "100",
+    JSON.stringify(ocrData),
+    12345,
+  ]);
+});
+
+test("Rechaza un identificador Veryfi inválido", async () => {
+  let queryCalled = false;
+
+  const mockQuery: SaveTicketOcrResultQuery = async () => {
+    queryCalled = true;
+    return { rows: [{ id: "100" }] };
+  };
+
+  await assert.rejects(
+    saveTicketOcrResult(
+      {
+        ticketId: "100",
+        veryfiDocumentId: 0,
+        ocrData: {},
+      },
+      mockQuery,
+    ),
+    /identificador del documento Veryfi es inválido/,
+  );
+
+  assert.equal(queryCalled, false);
+});
+
+test("Detecta cuando no se actualiza el ticket", async () => {
+  const mockQuery: SaveTicketOcrResultQuery = async () => ({
+    rows: [],
+  });
+
+  await assert.rejects(
+    saveTicketOcrResult(
+      {
+        ticketId: "100",
+        veryfiDocumentId: 12345,
+        ocrData: {},
+      },
+      mockQuery,
+    ),
+    /No fue posible guardar el resultado OCR/,
+  );
+});
+
+test("Propaga errores de PostgreSQL al guardar OCR", async () => {
+  const databaseError = new Error(
+    "PostgreSQL no disponible",
+  );
+
+  const mockQuery: SaveTicketOcrResultQuery = async () => {
+    throw databaseError;
+  };
+
+  await assert.rejects(
+    saveTicketOcrResult(
+      {
+        ticketId: "100",
+        veryfiDocumentId: 12345,
+        ocrData: {},
+      },
+      mockQuery,
+    ),
+    (error: unknown) => error === databaseError,
+  );
+});

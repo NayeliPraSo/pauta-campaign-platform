@@ -1,5 +1,8 @@
 
-import { Router } from "express";
+import {
+  Router,
+  type RequestHandler,
+} from "express";
 
 import { requireAuth } from "../auth/middlewares/requireAuth.middleware.js";
 import { requireTrustedOrigin } from "../auth/middlewares/requireTrustedOrigin.middleware.js";
@@ -15,94 +18,124 @@ import {
 
 import { listParticipantTickets } from "./tickets.repository.js";
 
-export const ticketsRouter = Router();
+export interface TicketsRouterDependencies {
+  authenticate?: RequestHandler;
+  register?: typeof registerTicket;
+  listTickets?: typeof listParticipantTickets;
+}
 
-ticketsRouter.get(
-  "/",
-  requireAuth,
-  async (_req, res) => {
-    try {
-      const auth = res.locals.auth as {
-        participantId: string;
-        sessionId: string;
-      };
+export function createTicketsRouter(
+  dependencies: TicketsRouterDependencies = {},
+) {
+  const ticketsRouter = Router();
 
-      const tickets = await listParticipantTickets(
-        auth.participantId,
-      );
+  const authenticate =
+    dependencies.authenticate ?? requireAuth;
 
-      res.status(200).json({
-        success: true,
-        data: tickets,
-      });
-    } catch (error) {
-      console.error(
-        "Error al consultar los comprobantes:",
-        error,
-      );
+  const register =
+    dependencies.register ?? registerTicket;
 
-      res.status(500).json({
-        success: false,
-        message:
-          "No fue posible consultar los comprobantes.",
-      });
-    }
-  },
-);
+  const listTickets =
+    dependencies.listTickets ?? listParticipantTickets;
 
-ticketsRouter.post(
-  "/",
-  requireTrustedOrigin,
-  requireAuth,
-  uploadTicket.single("file"),
-  validateUploadedTicket,
-  async (req, res) => {
-    try {
-      const file = req.file!;
+  // Consultar los comprobantes del participante.
+  ticketsRouter.get(
+    "/",
+    authenticate,
+    async (_req, res) => {
+      try {
+        const auth = res.locals.auth as {
+          participantId: string;
+          sessionId: string;
+        };
 
-      const auth = res.locals.auth as {
-        participantId: string;
-        sessionId: string;
-      };
+        const tickets = await listTickets(
+          auth.participantId,
+        );
 
-      const ticket = await registerTicket({
-        participantId: auth.participantId,
-        fileBuffer: file.buffer,
-        originalFilename: file.originalname,
-        mimeType: file.mimetype,
-      });
-
-      res.status(201).json({
-        success: true,
-        message:
-          "El comprobante se registró correctamente.",
-        data: {
-          id: ticket.id,
-          status: ticket.status,
-          createdAt: ticket.createdAt,
-        },
-      });
-    } catch (error) {
-      if (error instanceof DuplicateTicketError) {
-        res.status(409).json({
-          success: false,
-          message: error.message,
+        res.status(200).json({
+          success: true,
+          data: tickets,
         });
-        return;
+      } catch (error) {
+        console.error(
+          "Error al consultar los comprobantes:",
+          error,
+        );
+
+        res.status(500).json({
+          success: false,
+          message:
+            "No fue posible consultar los comprobantes.",
+        });
       }
+    },
+  );
 
-      console.error(
-        "Error al registrar el comprobante:",
-        error,
-      );
+  // Registrar un nuevo comprobante.
+  ticketsRouter.post(
+    "/",
+    requireTrustedOrigin,
+    authenticate,
+    uploadTicket.single("file"),
+    validateUploadedTicket,
+    async (req, res) => {
+      try {
+        const file = req.file!;
 
-      res.status(500).json({
-        success: false,
-        message:
-          "No fue posible registrar el comprobante.",
-      });
-    }
-  },
-);
+        const auth = res.locals.auth as {
+          participantId: string;
+          sessionId: string;
+        };
 
-ticketsRouter.use(handleTicketUploadError);
+        const ticket = await register({
+          participantId: auth.participantId,
+          fileBuffer: file.buffer,
+          originalFilename: file.originalname,
+          mimeType: file.mimetype,
+        });
+
+        res.status(201).json({
+          success: true,
+          message:
+            ticket.ocrStatus === "processed"
+              ? "El comprobante se registró y procesó correctamente. Su validación está pendiente."
+              : "El comprobante se registró correctamente, pero su procesamiento está pendiente. No es necesario volver a subirlo.",
+          data: {
+            id: ticket.id,
+            status: ticket.status,
+            ocrStatus: ticket.ocrStatus,
+            createdAt: ticket.createdAt,
+          },
+        });
+      } catch (error) {
+        if (error instanceof DuplicateTicketError) {
+          res.status(409).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
+
+        console.error(
+          "Error al registrar el comprobante:",
+          error,
+        );
+
+        res.status(500).json({
+          success: false,
+          message:
+            "No fue posible registrar el comprobante.",
+        });
+      }
+    },
+  );
+
+  // Manejar errores durante la carga del archivo.
+  ticketsRouter.use(handleTicketUploadError);
+
+  return ticketsRouter;
+}
+
+// Router utilizado normalmente por el backend.
+export const ticketsRouter = createTicketsRouter();

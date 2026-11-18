@@ -128,3 +128,60 @@ export async function listParticipantTickets(
     createdAt: row.created_at,
   }));
 }
+
+
+export interface SaveTicketOcrResultInput {
+  ticketId: string;
+  veryfiDocumentId: number;
+  ocrData: Record<string, unknown>;
+}
+
+interface SavedTicketOcrRow {
+  id: string;
+}
+
+export type SaveTicketOcrResultQuery = (
+  sql: string,
+  values: readonly (string | number)[],
+) => Promise<{
+  rows: SavedTicketOcrRow[];
+}>;
+
+export async function saveTicketOcrResult(
+  input: SaveTicketOcrResultInput,
+  query: SaveTicketOcrResultQuery = (sql, values) =>
+    pool.query<SavedTicketOcrRow>(sql, [...values]),
+): Promise<void> {
+  if (
+    !Number.isSafeInteger(input.veryfiDocumentId) ||
+    input.veryfiDocumentId <= 0
+  ) {
+    throw new Error(
+      "El identificador del documento Veryfi es inválido.",
+    );
+  }
+
+  const result = await query(
+    `
+      UPDATE tickets
+      SET
+        ocr_data = $2::jsonb,
+        veryfi_document_id = $3,
+        updated_at = NOW()
+      WHERE id = $1
+        AND status = 'pending'
+      RETURNING id::text AS id
+    `,
+    [
+      input.ticketId,
+      JSON.stringify(input.ocrData),
+      input.veryfiDocumentId,
+    ],
+  );
+
+  if (result.rows.length !== 1) {
+    throw new Error(
+      "No fue posible guardar el resultado OCR del ticket.",
+    );
+  }
+}
