@@ -1,4 +1,3 @@
-
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -315,6 +314,13 @@ test("Guarda los datos OCR devueltos por Veryfi", async () => {
     ticketId: "100",
     veryfiDocumentId: 12345,
     ocrData: ocrDocument,
+    normalizedData: {
+      merchant_name: "Comercio de prueba",
+      purchase_date: null,
+      total_amount: 250,
+      currency: null,
+      products: [],
+    },
   });
 
   assert.equal(result.ocrStatus, "processed");

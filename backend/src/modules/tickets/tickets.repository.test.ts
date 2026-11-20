@@ -1,4 +1,3 @@
-
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -21,6 +20,14 @@ const validInput: CreateTicketInput = {
 };
 
 const createdAt = new Date("2026-10-29T12:00:00.000Z");
+
+const emptyNormalizedData = {
+  merchant_name: null,
+  purchase_date: null,
+  total_amount: null,
+  currency: null,
+  products: [],
+};
 
 test("Inserta un ticket con los parámetros esperados", async () => {
   let capturedSql = "";
@@ -241,7 +248,7 @@ test(
 
 test("Guarda el resultado OCR en el ticket indicado", async () => {
   let capturedSql = "";
-  let capturedValues: readonly (string | number)[] = [];
+  let capturedValues: readonly (string | number | null)[] = [];
 
   const ocrData = {
     id: 12345,
@@ -266,6 +273,13 @@ test("Guarda el resultado OCR en el ticket indicado", async () => {
       ticketId: "100",
       veryfiDocumentId: 12345,
       ocrData,
+      normalizedData: {
+        merchant_name: "Comercio de prueba",
+        purchase_date: "2026-11-18",
+        total_amount: 250,
+        currency: "MXN",
+        products: [],
+      },
     },
     mockQuery,
   );
@@ -273,6 +287,10 @@ test("Guarda el resultado OCR en el ticket indicado", async () => {
   assert.match(capturedSql, /UPDATE tickets/);
   assert.match(capturedSql, /ocr_data = \$2::jsonb/);
   assert.match(capturedSql, /veryfi_document_id = \$3/);
+  assert.match(capturedSql, /merchant_name = \$4/);
+  assert.match(capturedSql, /purchase_date = \$5::date/);
+  assert.match(capturedSql, /total_amount = \$6/);
+  assert.match(capturedSql, /currency = \$7/);
   assert.match(capturedSql, /WHERE id = \$1/);
   assert.match(capturedSql, /status = 'pending'/);
   assert.doesNotMatch(capturedSql, /SET\s+status\s*=/);
@@ -281,6 +299,10 @@ test("Guarda el resultado OCR en el ticket indicado", async () => {
     "100",
     JSON.stringify(ocrData),
     12345,
+    "Comercio de prueba",
+    "2026-11-18",
+    250,
+    "MXN",
   ]);
 });
 
@@ -298,6 +320,7 @@ test("Rechaza un identificador Veryfi inválido", async () => {
         ticketId: "100",
         veryfiDocumentId: 0,
         ocrData: {},
+        normalizedData: emptyNormalizedData,
       },
       mockQuery,
     ),
@@ -318,6 +341,7 @@ test("Detecta cuando no se actualiza el ticket", async () => {
         ticketId: "100",
         veryfiDocumentId: 12345,
         ocrData: {},
+        normalizedData: emptyNormalizedData,
       },
       mockQuery,
     ),
@@ -340,9 +364,62 @@ test("Propaga errores de PostgreSQL al guardar OCR", async () => {
         ticketId: "100",
         veryfiDocumentId: 12345,
         ocrData: {},
+        normalizedData: emptyNormalizedData,
       },
       mockQuery,
     ),
     (error: unknown) => error === databaseError,
   );
+});
+
+test("Guarda OCR original y usa NULL para campos normalizados inválidos", async () => {
+  let capturedValues: readonly (string | number | null)[] = [];
+  const ocrData = { id: 12345, vendor: { name: "Dato original" } };
+
+  const mockQuery: SaveTicketOcrResultQuery = async (_sql, values) => {
+    capturedValues = values;
+    return { rows: [{ id: "100" }] };
+  };
+
+  await saveTicketOcrResult({
+    ticketId: "100",
+    veryfiDocumentId: 12345,
+    ocrData,
+    normalizedData: {
+      merchant_name: "x".repeat(256),
+      purchase_date: "2026-02-30",
+      total_amount: 10000000000,
+      currency: "PESOS",
+      products: [],
+    },
+  }, mockQuery);
+
+  assert.deepEqual(capturedValues, [
+    "100", JSON.stringify(ocrData), 12345, null, null, null, null,
+  ]);
+});
+
+test("Conserva campos válidos aunque otros sean inválidos", async () => {
+  let capturedValues: readonly (string | number | null)[] = [];
+  const mockQuery: SaveTicketOcrResultQuery = async (_sql, values) => {
+    capturedValues = values;
+    return { rows: [{ id: "100" }] };
+  };
+
+  await saveTicketOcrResult({
+    ticketId: "100",
+    veryfiDocumentId: 12345,
+    ocrData: { id: 12345 },
+    normalizedData: {
+      merchant_name: "Comercio válido",
+      purchase_date: "2026-11-18",
+      total_amount: 10.123,
+      currency: "MXN",
+      products: [],
+    },
+  }, mockQuery);
+
+  assert.deepEqual(capturedValues.slice(3), [
+    "Comercio válido", "2026-11-18", null, "MXN",
+  ]);
 });

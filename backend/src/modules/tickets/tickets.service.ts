@@ -1,6 +1,6 @@
-
 import { calculateBufferHash } from "./utils/fileHash.js";
 import { findTicketByFileHash } from "./duplicateRepository.js";
+import { normalizeVeryfiDocument } from "./normalization/normalizeVeryfiDocument.js";
 
 import {
   createTicket,
@@ -149,13 +149,17 @@ export async function registerTicket(
       );
     }
 
-    // 7. Guardar la respuesta OCR en PostgreSQL.
+    // 7. Normalizar los datos sin modificar la respuesta original.
+    const normalizedData = normalizeVeryfiDocument(document);
+
+    // 8. Guardar la respuesta OCR y los campos normalizados.
     await saveOcrResult({
       ticketId: createdTicket.id,
       veryfiDocumentId: document.id,
       ocrData: JSON.parse(
         JSON.stringify(document),
       ) as Record<string, unknown>,
+      normalizedData,
     });
 
     return {
