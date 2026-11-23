@@ -9,6 +9,8 @@ import {
   type ListParticipantTicketsQuery,
   saveTicketOcrResult,
   type SaveTicketOcrResultQuery,
+  recordAutomaticTicketDecision,
+  type TicketDecisionClient,
 } from "./tickets.repository.js";
 
 const validInput: CreateTicketInput = {
@@ -28,6 +30,7 @@ const emptyNormalizedData = {
   currency: null,
   products: [],
 };
+
 
 test("Inserta un ticket con los parámetros esperados", async () => {
   let capturedSql = "";
@@ -422,4 +425,245 @@ test("Conserva campos válidos aunque otros sean inválidos", async () => {
   assert.deepEqual(capturedValues.slice(3), [
     "Comercio válido", "2026-11-18", null, "MXN",
   ]);
+});
+
+function createDecisionClientMock(options?: {
+  updateRows?: Array<Record<string, unknown>>;
+  failOn?: "BEGIN" | "UPDATE" | "INSERT" | "COMMIT";
+}) {
+  const statements: string[] = [];
+  const parameters: Array<readonly unknown[] | undefined> = [];
+  let releaseCount = 0;
+
+  const client: TicketDecisionClient = {
+    async query(sql, values) {
+      const statement = sql.trim();
+      statements.push(statement);
+      parameters.push(values);
+
+      const operation = statement.split(/\s+/)[0];
+
+      if (operation === options?.failOn) {
+        throw new Error(`Error simulado en ${operation}`);
+      }
+
+      if (operation === "UPDATE") {
+        return {
+          rows: options?.updateRows ?? [{ id: "100" }],
+        };
+      }
+
+      return { rows: [] };
+    },
+
+    release() {
+      releaseCount++;
+    },
+  };
+
+  return {
+    client,
+    statements,
+    parameters,
+    get releaseCount() {
+      return releaseCount;
+    },
+  };
+}
+
+test("Registra una aprobación automática en una transacción", async () => {
+  const mock = createDecisionClientMock();
+
+  await recordAutomaticTicketDecision(
+    {
+      ticketId: "100",
+      status: "approved",
+      reason: "Cumple las reglas configuradas.",
+      metadata: {
+        validationResults: [],
+      },
+    },
+    async () => mock.client,
+  );
+
+  assert.deepEqual(
+    mock.statements.map((sql) => sql.split(/\s+/)[0]),
+    ["BEGIN", "UPDATE", "INSERT", "COMMIT"],
+  );
+
+  assert.match(mock.statements[1], /status = 'pending'/);
+  assert.match(mock.statements[1], /reviewed_at = CASE/);
+  assert.match(mock.statements[2], /INSERT INTO ticket_reviews/);
+
+  assert.deepEqual(mock.parameters[1], [
+    "100",
+    "approved",
+    "Cumple las reglas configuradas.",
+  ]);
+
+  assert.deepEqual(mock.parameters[2], [
+    "100",
+    "approved",
+    "Cumple las reglas configuradas.",
+    JSON.stringify({ validationResults: [] }),
+  ]);
+
+  assert.equal(mock.releaseCount, 1);
+});
+
+test("Conserva NULL en reviewed_at para revisión humana pendiente", async () => {
+  const mock = createDecisionClientMock();
+
+  await recordAutomaticTicketDecision(
+    {
+      ticketId: "100",
+      status: "requires_review",
+    },
+    async () => mock.client,
+  );
+
+  assert.match(
+    mock.statements[1],
+    /WHEN \$2::text IN \('approved', 'rejected'\) THEN NOW\(\)\s+ELSE NULL/,
+  );
+
+  assert.deepEqual(mock.parameters[1], [
+    "100",
+    "requires_review",
+    null,
+  ]);
+
+  assert.equal(mock.releaseCount, 1);
+});
+
+test("Impide modificar un ticket que ya no está pendiente", async () => {
+  const mock = createDecisionClientMock({
+    updateRows: [],
+  });
+
+  await assert.rejects(
+    recordAutomaticTicketDecision(
+      {
+        ticketId: "100",
+        status: "rejected",
+      },
+      async () => mock.client,
+    ),
+    /El ticket no existe o ya no está pendiente/,
+  );
+
+  assert.deepEqual(
+    mock.statements.map((sql) => sql.split(/\s+/)[0]),
+    ["BEGIN", "UPDATE", "ROLLBACK"],
+  );
+
+  assert.equal(mock.releaseCount, 1);
+});
+
+test("Revierte la actualización cuando falla la auditoría", async () => {
+  const mock = createDecisionClientMock({
+    failOn: "INSERT",
+  });
+
+  await assert.rejects(
+    recordAutomaticTicketDecision(
+      {
+        ticketId: "100",
+        status: "rejected",
+        reason: "Importe insuficiente.",
+      },
+      async () => mock.client,
+    ),
+    /Error simulado en INSERT/,
+  );
+
+  assert.deepEqual(
+    mock.statements.map((sql) => sql.split(/\s+/)[0]),
+    ["BEGIN", "UPDATE", "INSERT", "ROLLBACK"],
+  );
+
+  assert.equal(mock.releaseCount, 1);
+});
+
+test("Revierte la transacción cuando falla la actualización", async () => {
+  const mock = createDecisionClientMock({
+    failOn: "UPDATE",
+  });
+
+  await assert.rejects(
+    recordAutomaticTicketDecision(
+      {
+        ticketId: "100",
+        status: "approved",
+      },
+      async () => mock.client,
+    ),
+    /Error simulado en UPDATE/,
+  );
+
+  assert.deepEqual(
+    mock.statements.map((sql) => sql.split(/\s+/)[0]),
+    ["BEGIN", "UPDATE", "ROLLBACK"],
+  );
+
+  assert.equal(mock.releaseCount, 1);
+});
+
+test("Libera la conexión si falla el inicio de la transacción", async () => {
+  const mock = createDecisionClientMock({
+    failOn: "BEGIN",
+  });
+
+  await assert.rejects(
+    recordAutomaticTicketDecision(
+      {
+        ticketId: "100",
+        status: "approved",
+      },
+      async () => mock.client,
+    ),
+    /Error simulado en BEGIN/,
+  );
+
+  assert.equal(mock.releaseCount, 1);
+});
+
+test("Rechaza identificadores inválidos sin abrir conexión", async () => {
+  let connectionCount = 0;
+
+  await assert.rejects(
+    recordAutomaticTicketDecision(
+      {
+        ticketId: "abc",
+        status: "approved",
+      },
+      async () => {
+        connectionCount++;
+        return createDecisionClientMock().client;
+      },
+    ),
+    /identificador del ticket es inválido/,
+  );
+
+  assert.equal(connectionCount, 0);
+});
+
+test("Rechaza estados inválidos sin abrir conexión", async () => {
+  let connectionCount = 0;
+
+  await assert.rejects(
+    recordAutomaticTicketDecision(
+      {
+        ticketId: "100",
+        status: "processing" as "approved",
+      },
+      async () => {
+        connectionCount++;
+        return createDecisionClientMock().client;
+      },
+    ),
+    /estado de validación es inválido/,
+  );
+
+  assert.equal(connectionCount, 0);
 });

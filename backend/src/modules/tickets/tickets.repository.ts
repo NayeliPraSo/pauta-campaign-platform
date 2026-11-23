@@ -236,3 +236,124 @@ export async function saveTicketOcrResult(
     );
   }
 }
+
+export type AutomaticTicketDecisionStatus =
+  | "approved"
+  | "rejected"
+  | "requires_review";
+
+export interface RecordAutomaticTicketDecisionInput {
+  ticketId: string;
+  status: AutomaticTicketDecisionStatus;
+  reason?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TicketDecisionClient {
+  query(
+    sql: string,
+    values?: readonly unknown[],
+  ): Promise<{ rows: Array<Record<string, unknown>> }>;
+  release(): void;
+}
+
+export type TicketDecisionConnect =
+  () => Promise<TicketDecisionClient>;
+
+export async function recordAutomaticTicketDecision(
+  input: RecordAutomaticTicketDecisionInput,
+  connect: TicketDecisionConnect = () => pool.connect(),
+): Promise<void> {
+  if (!/^[1-9]\d*$/.test(input.ticketId)) {
+    throw new Error("El identificador del ticket es inválido.");
+  }
+
+  if (
+    input.status !== "approved" &&
+    input.status !== "rejected" &&
+    input.status !== "requires_review"
+  ) {
+    throw new Error("El estado de validación es inválido.");
+  }
+
+  const client = await connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const updated = await client.query(
+      `
+        UPDATE tickets
+        SET
+          status = $2::text,
+          rejection_reason = CASE
+            WHEN $2::text = 'rejected' THEN $3
+            ELSE NULL
+          END,
+          reviewed_at = CASE
+            WHEN $2::text IN ('approved', 'rejected') THEN NOW()
+            ELSE NULL
+          END,
+          updated_at = NOW()
+        WHERE id = $1
+          AND status = 'pending'
+        RETURNING id::text AS id
+      `,
+      [
+        input.ticketId,
+        input.status,
+        input.reason ?? null,
+      ],
+    );
+
+    if (updated.rows.length !== 1) {
+      throw new Error(
+        "El ticket no existe o ya no está pendiente.",
+      );
+    }
+
+    await client.query(
+      `
+        INSERT INTO ticket_reviews (
+          ticket_id,
+          previous_status,
+          new_status,
+          review_type,
+          reviewer_id,
+          reason,
+          metadata
+        )
+        VALUES (
+          $1,
+          'pending',
+          $2,
+          'automatic',
+          NULL,
+          $3,
+          $4::jsonb
+        )
+      `,
+      [
+        input.ticketId,
+        input.status,
+        input.reason ?? null,
+        JSON.stringify(input.metadata ?? {}),
+      ],
+    );
+
+    await client.query("COMMIT");
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackError) {
+      console.error(
+        "No fue posible revertir la decisión automática:",
+        rollbackError,
+      );
+    }
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
