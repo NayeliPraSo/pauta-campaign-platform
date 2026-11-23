@@ -44,15 +44,46 @@ function normalizeNumber(value: OcrValue): number | null {
 }
 
 function normalizeDate(value: OcrValue): string | null {
-  const date = normalizeText(value);
+  const rawDate = normalizeText(value);
 
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (!rawDate) {
     return null;
   }
 
+  // Acepta YYYY-MM-DD y YYYY-MM-DD HH:mm:ss.
+  const match = /^(\d{4}-\d{2}-\d{2})(?: (\d{2}):(\d{2}):(\d{2}))?$/.exec(
+    rawDate,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const date = match[1]!;
   const [year, month, day] = date.split("-").map(Number);
 
-  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (year < 1 || year > 9999) {
+    return null;
+  }
+
+  // Si incluye hora, comprobar que también sea válida.
+  if (match[2] !== undefined) {
+    const hours = Number(match[2]);
+    const minutes = Number(match[3]);
+    const seconds = Number(match[4]);
+
+    if (
+      hours > 23 ||
+      minutes > 59 ||
+      seconds > 59
+    ) {
+      return null;
+    }
+  }
+
+  const parsed = new Date(0);
+  parsed.setUTCFullYear(year, month - 1, day);
+  parsed.setUTCHours(0, 0, 0, 0);
 
   if (
     parsed.getUTCFullYear() !== year ||

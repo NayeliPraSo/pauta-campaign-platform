@@ -138,6 +138,63 @@ test("Rechaza fechas inexistentes", () => {
   assert.equal(result.purchase_date, null);
 });
 
+test("Normaliza fechas de Veryfi que incluyen hora", () => {
+  const result = normalizeVeryfiDocument({
+    date: "2025-10-08 10:33:00",
+  });
+
+  assert.equal(result.purchase_date, "2025-10-08");
+});
+
+test("Normaliza fechas con hora dentro de BoundingElement", () => {
+  const result = normalizeVeryfiDocument({
+    date: { value: "2025-10-08 10:33:00" },
+  });
+
+  assert.equal(result.purchase_date, "2025-10-08");
+});
+
+test("Rechaza fechas inexistentes aunque incluyan hora", () => {
+  const result = normalizeVeryfiDocument({
+    date: "2025-02-30 10:33:00",
+  });
+
+  assert.equal(result.purchase_date, null);
+});
+
+test("Rechaza horas inválidas", () => {
+  for (const date of [
+    "2025-10-08 24:00:00",
+    "2025-10-08 10:60:00",
+    "2025-10-08 10:33:60",
+  ]) {
+    const result = normalizeVeryfiDocument({ date });
+
+    assert.equal(result.purchase_date, null);
+  }
+});
+
+test("Rechaza formatos de fecha no admitidos", () => {
+  for (const date of [
+    "08/10/2025",
+    "2025-10-08T10:33:00Z",
+    "2025-10-08 texto",
+    "0000-10-08",
+  ]) {
+    const result = normalizeVeryfiDocument({ date });
+
+    assert.equal(result.purchase_date, null);
+  }
+});
+
+test("Acepta años de cuatro dígitos menores a 100", () => {
+  const result = normalizeVeryfiDocument({
+    date: "0099-10-08",
+  });
+
+  assert.equal(result.purchase_date, "0099-10-08");
+});
+
 test("No convierte importes de texto a números", () => {
   const result = normalizeVeryfiDocument({
     total: { value: "250" },
