@@ -1,4 +1,3 @@
-
 import { pool } from "../../database/connection";
 
 export interface ExistingDuplicateTicket {
@@ -6,11 +5,24 @@ export interface ExistingDuplicateTicket {
   status: string;
 }
 
+
 export async function findTicketByFileHash(
   fileHash: string,
+  excludeTicketId?: string,
 ): Promise<ExistingDuplicateTicket | null> {
   if (!/^[a-f0-9]{64}$/.test(fileHash)) {
-    throw new Error("El hash SHA-256 proporcionado es inválido.");
+    throw new Error(
+      "El hash SHA-256 proporcionado es inválido.",
+    );
+  }
+
+  if (
+    excludeTicketId !== undefined &&
+    !/^[1-9]\d*$/.test(excludeTicketId)
+  ) {
+    throw new Error(
+      "El identificador del ticket es inválido.",
+    );
   }
 
   const result = await pool.query<ExistingDuplicateTicket>(
@@ -20,13 +32,15 @@ export async function findTicketByFileHash(
         status
       FROM tickets
       WHERE file_hash = $1
+        AND ($2::bigint IS NULL OR id <> $2::bigint)
       LIMIT 1
     `,
-    [fileHash],
+    [fileHash, excludeTicketId ?? null],
   );
 
   return result.rows[0] ?? null;
 }
+
 
 
 export interface TicketDuplicateData {

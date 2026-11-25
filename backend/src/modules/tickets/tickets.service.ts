@@ -2,9 +2,16 @@ import { calculateBufferHash } from "./utils/fileHash.js";
 import { findTicketByFileHash } from "./duplicateRepository.js";
 import { normalizeVeryfiDocument } from "./normalization/normalizeVeryfiDocument.js";
 
+import { getActiveValidationRules } from "./validation/rulesRepository.js";
+import { validateTicketWithDatabase } from "./validation/validateTicketWithDatabase.js";
+import { validateVeryfiDuplicateWithDatabase } from "./validation/validateVeryfiDuplicateWithDatabase.js";
+
+import type { TicketData } from "./validation/types.js";
+
 import {
   createTicket,
   saveTicketOcrResult,
+  recordAutomaticTicketDecision,
   type CreatedTicket,
 } from "./tickets.repository.js";
 
@@ -28,6 +35,10 @@ export interface RegisterTicketDependencies {
   storage?: StorageService;
   processDocument?: ProcessDocument;
   saveOcrResult?: typeof saveTicketOcrResult;
+  getActiveRules?: typeof getActiveValidationRules;
+  validateRules?: typeof validateTicketWithDatabase;
+  validateVeryfiDuplicate?: typeof validateVeryfiDuplicateWithDatabase;
+  recordDecision?: typeof recordAutomaticTicketDecision;
 }
 
 export interface RegisterTicketResult extends CreatedTicket {
@@ -119,9 +130,10 @@ export async function registerTicket(
     throw error;
   }
 
-  // 5. Procesar el documento con Veryfi.
-  // El ticket ya está registrado, por lo que
-  // no debemos eliminar su archivo si falla el OCR.
+  // 5. Procesar y guardar los datos OCR.
+  let document: Awaited<ReturnType<ProcessDocument>>;
+  let normalizedData: TicketData;
+
   try {
     const processDocument =
       dependencies.processDocument ??
@@ -131,12 +143,12 @@ export async function registerTicket(
         )
       ).processVeryfiDocument;
 
-    const document = await processDocument(
+    document = await processDocument(
       input.fileBuffer,
       input.originalFilename,
     );
 
-    // 6. Validar el identificador de Veryfi.
+    // Validar el identificador del documento de Veryfi.
     if (
       !document ||
       typeof document !== "object" ||
@@ -149,10 +161,10 @@ export async function registerTicket(
       );
     }
 
-    // 7. Normalizar los datos sin modificar la respuesta original.
-    const normalizedData = normalizeVeryfiDocument(document);
+    // Normalizar los datos sin modificar la respuesta original.
+    normalizedData = normalizeVeryfiDocument(document);
 
-    // 8. Guardar la respuesta OCR y los campos normalizados.
+    // Guardar la respuesta OCR y los campos normalizados.
     await saveOcrResult({
       ticketId: createdTicket.id,
       veryfiDocumentId: document.id,
@@ -161,18 +173,140 @@ export async function registerTicket(
       ) as Record<string, unknown>,
       normalizedData,
     });
+  } catch (error) {
+    // Conservamos el ticket y su archivo si falla
+    // el procesamiento o almacenamiento del OCR.
+    console.error(
+      "No fue posible procesar el OCR del ticket:",
+      error,
+    );
+
+    return {
+      ...createdTicket,
+      ocrStatus: "pending",
+    };
+  }
+
+  // 6. Evaluar las reglas activas de la campaña.
+  try {
+    const getActiveRules =
+      dependencies.getActiveRules ??
+      getActiveValidationRules;
+
+    const validateRules =
+      dependencies.validateRules ??
+      validateTicketWithDatabase;
+
+    const validateVeryfiDuplicate =
+      dependencies.validateVeryfiDuplicate ??
+      validateVeryfiDuplicateWithDatabase;
+
+    const recordDecision =
+      dependencies.recordDecision ??
+      recordAutomaticTicketDecision;
+
+    // Consultar las reglas activas de la campaña.
+    const rules = await getActiveRules();
+
+    // Preparar los datos que utilizará el motor de validación.
+    const ticketData: TicketData = {
+      ...normalizedData,
+      file_hash: fileHash,
+    };
+
+    // Comprobar si la regla de duplicados está habilitada.
+    const duplicateRuleEnabled = rules.some(
+      (rule) =>
+        rule.rule_type === "duplicate_ticket" &&
+        rule.is_enabled,
+    );
+
+    // Evaluar los duplicados identificados por Veryfi.
+    if (duplicateRuleEnabled) {
+      const duplicateResult =
+        await validateVeryfiDuplicate(document);
+
+      // Evitar que el ticket se considere duplicado
+      // de sí mismo.
+      ticketData.veryfi_duplicate_status =
+        duplicateResult.existing_ticket_id === createdTicket.id
+          ? "requires_review"
+          : duplicateResult.status;
+    }
+
+    // Ejecutar las reglas excluyendo el ticket actual
+    // de la búsqueda de duplicados por hash.
+    const validation = await validateRules(
+      ticketData,
+      rules,
+      findDuplicate,
+      createdTicket.id,
+    );
+
+    // Identificar los resultados relevantes
+    // para justificar la decisión automática.
+    const relevantResults = validation.results.filter(
+      (result) => {
+        if (validation.status === "rejected") {
+          return (
+            result.passed === false &&
+            rules.some(
+              (rule) =>
+                rule.id === result.rule_id &&
+                rule.failure_action === "rejected",
+            )
+          );
+        }
+
+        if (validation.status === "requires_review") {
+          return result.passed !== true;
+        }
+
+        return false;
+      },
+    );
+
+    // Construir el motivo de la decisión.
+    const reason =
+      relevantResults
+        .map((result) => result.reason)
+        .filter(Boolean)
+        .join(" ") ||
+      (
+        validation.status === "approved"
+          ? "El comprobante cumple las reglas de participación."
+          : validation.status === "requires_review"
+            ? "El comprobante requiere una revisión adicional."
+            : "El comprobante no cumple las reglas de participación."
+      );
+
+    // 7. Guardar el resultado y su auditoría.
+    await recordDecision({
+      ticketId: createdTicket.id,
+      status: validation.status,
+      reason,
+      metadata: {
+        results: validation.results,
+      },
+    });
+
+    // 8. Devolver el ticket con su estado actualizado.
+    return {
+      ...createdTicket,
+      status: validation.status,
+      ocrStatus: "processed",
+    };
+  } catch (error) {
+    // Si falla la validación automática, conservamos
+    // el ticket pendiente y los datos OCR ya almacenados.
+    console.error(
+      "No fue posible completar la validación automática:",
+      error,
+    );
 
     return {
       ...createdTicket,
       ocrStatus: "processed",
-    };
-  } catch {
-    // Si falla Veryfi o la persistencia OCR,
-    // conservamos el ticket y su archivo.
-    // No realizamos reintentos automáticos.
-    return {
-      ...createdTicket,
-      ocrStatus: "pending",
     };
   }
 }

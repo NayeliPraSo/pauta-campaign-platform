@@ -1,4 +1,3 @@
-
 import { findTicketByFileHash } from "../duplicateRepository";
 import { validateTicket } from "./engine";
 
@@ -10,12 +9,14 @@ import type {
 
 type DuplicateLookup = (
   fileHash: string,
+  excludeTicketId?: string,
 ) => Promise<{ id: string; status: string } | null>;
 
 export async function validateTicketWithDatabase(
   ticket: TicketData,
   rules: ValidationRule[],
   findDuplicate: DuplicateLookup = findTicketByFileHash,
+  currentTicketId?: string,
 ): Promise<TicketValidationResult> {
   const duplicateRuleEnabled = rules.some(
     (rule) =>
@@ -30,8 +31,6 @@ export async function validateTicketWithDatabase(
     );
   }
 
-  // Nunca confiamos en un identificador proporcionado
-  // por quien envía el ticket.
   const preparedTicket: TicketData = {
     ...ticket,
     duplicate_ticket_id: undefined,
@@ -44,9 +43,10 @@ export async function validateTicketWithDatabase(
     return validateTicket(preparedTicket, rules);
   }
 
-  // La consulta debe completarse correctamente.
-  // Los errores se propagan; nunca equivalen a "sin duplicados".
-  const existingTicket = await findDuplicate(ticket.file_hash);
+  const existingTicket = await findDuplicate(
+    ticket.file_hash,
+    currentTicketId,
+  );
 
   preparedTicket.duplicate_ticket_id =
     existingTicket?.id ?? null;

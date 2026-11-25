@@ -1,4 +1,3 @@
-
 import "dotenv/config";
 
 import assert from "node:assert/strict";
@@ -7,6 +6,7 @@ import test, { after } from "node:test";
 import { pool } from "../../database/connection";
 
 import {
+  findTicketByFileHash,
   findTicketByPurchaseData,
   findTicketByVeryfiDocumentId,
 } from "./duplicateRepository";
@@ -112,6 +112,33 @@ test("Devuelve null cuando el documento Veryfi no está registrado", async () =>
   );
 
   assert.equal(result, null);
+});
+
+test("Excluye el ticket actual de la búsqueda por hash", async () => {
+  const result = await pool.query<{
+    id: string;
+    status: string;
+    file_hash: string;
+  }>(`
+    SELECT id::text AS id, status, file_hash
+    FROM tickets
+    WHERE file_hash ~ '^[a-f0-9]{64}$'
+    ORDER BY id
+    LIMIT 1
+  `);
+
+  const ticket = result.rows[0];
+  assert.ok(ticket, "Se necesita un ticket registrado con un hash válido.");
+
+  const expected = { id: ticket.id, status: ticket.status };
+  assert.deepEqual(await findTicketByFileHash(ticket.file_hash), expected);
+  assert.equal(await findTicketByFileHash(ticket.file_hash, ticket.id), null);
+
+  const otherTicketId = ticket.id === "1" ? "2" : "1";
+  assert.deepEqual(
+    await findTicketByFileHash(ticket.file_hash, otherTicketId),
+    expected,
+  );
 });
 
 after(async () => {

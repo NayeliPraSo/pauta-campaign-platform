@@ -10,6 +10,8 @@ import {
   type RegisterTicketInput,
 } from "./tickets.service.js";
 
+import type { ValidationRule } from "./validation/types.js";
+
 import { calculateBufferHash } from "./utils/fileHash.js";
 
 const input: RegisterTicketInput = {
@@ -79,10 +81,13 @@ test("Registra un ticket válido y conserva sus metadatos", async () => {
     }),
 
     saveOcrResult: async () => {},
+    getActiveRules: async () => [],
+    recordDecision: async () => {},
   });
 
   assert.deepEqual(result, {
     ...createdTicket,
+    status: "requires_review",
     ocrStatus: "processed",
   });
 
@@ -308,6 +313,8 @@ test("Guarda los datos OCR devueltos por Veryfi", async () => {
     saveOcrResult: async (ocrInput) => {
       receivedOcr = ocrInput;
     },
+    getActiveRules: async () => [],
+    recordDecision: async () => {},
   });
 
   assert.deepEqual(receivedOcr, {
@@ -324,7 +331,7 @@ test("Guarda los datos OCR devueltos por Veryfi", async () => {
   });
 
   assert.equal(result.ocrStatus, "processed");
-  assert.equal(result.status, "pending");
+  assert.equal(result.status, "requires_review");
   assert.equal(mock.deletedFiles.length, 0);
 });
 
@@ -405,3 +412,106 @@ test("No guarda OCR si Veryfi devuelve un ID inválido", async () => {
   assert.equal(mock.savedFiles.length, 1);
   assert.equal(mock.deletedFiles.length, 0);
 });
+
+// Pruebas de integración de la validación automática.
+for (const status of ["approved", "rejected", "requires_review"] as const) {
+  test(`Registra una decisión automática: ${status}`, async () => {
+    const mock = createMockStorage();
+    let receivedDecision:
+      | Parameters<NonNullable<RegisterTicketDependencies["recordDecision"]>>[0]
+      | undefined;
+
+    const result = await registerTicket(input, {
+      findDuplicate: async () => null,
+      storage: mock.storage,
+      insertTicket: async () => createdTicket,
+      processDocument: async () => ({ id: 12345, total: 250, is_duplicate: false }),
+      saveOcrResult: async () => {},
+      getActiveRules: async () => [],
+      validateRules: async (ticketData, _rules, _findDuplicate, currentTicketId) => {
+        assert.equal(currentTicketId, createdTicket.id);
+        assert.equal(ticketData.file_hash, calculateBufferHash(input.fileBuffer));
+        return { status, results: [] };
+      },
+      recordDecision: async (decision) => { receivedDecision = decision; },
+    });
+
+    assert.equal(result.status, status);
+    assert.equal(result.ocrStatus, "processed");
+    assert.equal(receivedDecision?.ticketId, createdTicket.id);
+    assert.equal(receivedDecision?.status, status);
+    assert.ok(receivedDecision?.reason);
+    assert.equal(mock.deletedFiles.length, 0);
+  });
+}
+
+test("Conserva el OCR procesado si falla la validación automática", async () => {
+  const mock = createMockStorage();
+  let decisionCalled = false;
+  const result = await registerTicket(input, {
+    findDuplicate: async () => null,
+    storage: mock.storage,
+    insertTicket: async () => createdTicket,
+    processDocument: async () => ({ id: 12345, total: 250 }),
+    saveOcrResult: async () => {},
+    getActiveRules: async () => { throw new Error("No fue posible consultar las reglas"); },
+    recordDecision: async () => { decisionCalled = true; },
+  });
+  assert.equal(result.status, "pending");
+  assert.equal(result.ocrStatus, "processed");
+  assert.equal(decisionCalled, false);
+  assert.equal(mock.deletedFiles.length, 0);
+});
+
+const duplicateRule: ValidationRule = {
+  id: "5",
+  rule_type: "duplicate_ticket",
+  configuration: {},
+  failure_action: "rejected",
+  is_enabled: true,
+};
+
+const duplicateScenarios = [
+  { veryfiStatus: "not_duplicate", existingTicketId: null, expectedStatus: "approved" },
+  { veryfiStatus: "duplicate", existingTicketId: "99", expectedStatus: "rejected" },
+  { veryfiStatus: "requires_review", existingTicketId: null, expectedStatus: "requires_review" },
+  { veryfiStatus: "duplicate", existingTicketId: createdTicket.id, expectedStatus: "requires_review" },
+] as const;
+
+for (const scenario of duplicateScenarios) {
+  test(`Evalúa duplicados Veryfi: ${scenario.veryfiStatus}, ticket ${scenario.existingTicketId ?? "ninguno"}`, async () => {
+    const mock = createMockStorage();
+    const lookupCalls: Array<{ fileHash: string; excludeTicketId?: string }> = [];
+    let receivedDecision:
+      | Parameters<NonNullable<RegisterTicketDependencies["recordDecision"]>>[0]
+      | undefined;
+
+    const result = await registerTicket(input, {
+      findDuplicate: async (fileHash, excludeTicketId) => {
+        lookupCalls.push({ fileHash, excludeTicketId });
+        return null;
+      },
+      storage: mock.storage,
+      insertTicket: async () => createdTicket,
+      processDocument: async () => ({ id: 12345, total: 250 }),
+      saveOcrResult: async () => {},
+      getActiveRules: async () => [duplicateRule],
+      validateVeryfiDuplicate: async () => ({
+        status: scenario.veryfiStatus,
+        original_document_id: scenario.existingTicketId === null ? null : 12345,
+        existing_ticket_id: scenario.existingTicketId,
+        reason: "Resultado Veryfi simulado.",
+      }),
+      recordDecision: async (decision) => { receivedDecision = decision; },
+    });
+
+    assert.equal(result.status, scenario.expectedStatus);
+    assert.equal(result.ocrStatus, "processed");
+    assert.equal(receivedDecision?.status, scenario.expectedStatus);
+    assert.deepEqual(lookupCalls, [
+      { fileHash: calculateBufferHash(input.fileBuffer), excludeTicketId: undefined },
+      { fileHash: calculateBufferHash(input.fileBuffer), excludeTicketId: createdTicket.id },
+    ]);
+    assert.equal(mock.deletedFiles.length, 0);
+  });
+}
