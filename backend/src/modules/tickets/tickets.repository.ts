@@ -76,13 +76,17 @@ export async function createTicket(
     createdAt: ticket.created_at,
   };
 }
-
 export interface ParticipantTicket {
   id: string;
   originalFilename: string;
   mimeType: string;
   status: string;
   createdAt: Date;
+  merchantName: string | null;
+  purchaseDate: string | null;
+  totalAmount: number | null;
+  currency: string | null;
+  statusMessage: string | null;
 }
 
 interface ParticipantTicketRow {
@@ -91,6 +95,10 @@ interface ParticipantTicketRow {
   mime_type: string;
   status: string;
   created_at: Date;
+  merchant_name: string | null;
+  purchase_date: string | null;
+  total_amount: string | null;
+  currency: string | null;
 }
 
 export type ListParticipantTicketsQuery = (
@@ -99,6 +107,30 @@ export type ListParticipantTicketsQuery = (
 ) => Promise<{
   rows: ParticipantTicketRow[];
 }>;
+
+function getParticipantTicketStatusMessage(
+  status: string,
+): string | null {
+  switch (status) {
+    case "approved":
+      return "Tu comprobante fue aprobado.";
+
+    case "rejected":
+      return "Tu comprobante no cumple con las reglas de participación.";
+
+    case "requires_review":
+      return "Tu comprobante requiere una revisión adicional.";
+
+    case "pending":
+      return "Tu comprobante está pendiente de validación.";
+
+    case "processing":
+      return "Tu comprobante se encuentra en procesamiento.";
+
+    default:
+      return null;
+  }
+}
 
 export async function listParticipantTickets(
   participantId: string,
@@ -112,7 +144,11 @@ export async function listParticipantTickets(
         original_filename,
         mime_type,
         status,
-        created_at
+        created_at,
+        merchant_name,
+        TO_CHAR(purchase_date, 'YYYY-MM-DD') AS purchase_date,
+        total_amount::text AS total_amount,
+        currency
       FROM tickets
       WHERE participant_id = $1
       ORDER BY created_at DESC, id DESC
@@ -126,6 +162,16 @@ export async function listParticipantTickets(
     mimeType: row.mime_type,
     status: row.status,
     createdAt: row.created_at,
+    merchantName: row.merchant_name,
+    purchaseDate: row.purchase_date,
+    totalAmount:
+      row.total_amount === null
+        ? null
+        : validAmount(Number(row.total_amount)),
+    currency: row.currency,
+    statusMessage: getParticipantTicketStatusMessage(
+      row.status,
+    ),
   }));
 }
 

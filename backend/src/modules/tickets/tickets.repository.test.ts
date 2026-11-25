@@ -170,6 +170,10 @@ test(
             mime_type: "image/png",
             status: "pending",
             created_at: createdAt,
+            merchant_name: "Chedraui",
+            purchase_date: "2026-11-18",
+            total_amount: "250.50",
+            currency: "MXN",
           },
         ],
       };
@@ -199,6 +203,11 @@ test(
         mimeType: "image/png",
         status: "pending",
         createdAt,
+        merchantName: "Chedraui",
+        purchaseDate: "2026-11-18",
+        totalAmount: 250.50,
+        currency: "MXN",
+        statusMessage: "Tu comprobante está pendiente de validación.",
       },
     ]);
   },
@@ -233,6 +242,10 @@ test(
             mime_type: "application/pdf",
             status: "approved",
             created_at: createdAt,
+            merchant_name: null,
+            purchase_date: null,
+            total_amount: null,
+            currency: null,
           },
         ],
       });
@@ -245,6 +258,15 @@ test(
     assert.equal(
       tickets[0]?.id,
       "9007199254740993",
+    );
+
+    assert.equal(tickets[0]?.merchantName, null);
+    assert.equal(tickets[0]?.purchaseDate, null);
+    assert.equal(tickets[0]?.totalAmount, null);
+    assert.equal(tickets[0]?.currency, null);
+    assert.equal(
+      tickets[0]?.statusMessage,
+      "Tu comprobante fue aprobado.",
     );
   },
 );
@@ -666,4 +688,52 @@ test("Rechaza estados inválidos sin abrir conexión", async () => {
   );
 
   assert.equal(connectionCount, 0);
+});
+
+test("No expone información interna en el historial", async () => {
+  const mockQuery: ListParticipantTicketsQuery =
+    async () => ({
+      rows: [
+        {
+          id: "100",
+          original_filename: "ticket.png",
+          mime_type: "image/png",
+          status: "rejected",
+          created_at: createdAt,
+          merchant_name: "Chedraui",
+          purchase_date: "2026-11-18",
+          total_amount: "250.00",
+          currency: "MXN",
+          rejection_reason:
+            "El archivo ya fue registrado en el ticket 99.",
+          veryfi_document_id: 12345,
+          file_hash: "a".repeat(64),
+          file_path: "private/ticket.png",
+          ocr_data: {
+            internal: true,
+          },
+        },
+      ],
+    });
+
+  const tickets = await listParticipantTickets(
+    "15",
+    mockQuery,
+  );
+
+  assert.deepEqual(tickets, [
+    {
+      id: "100",
+      originalFilename: "ticket.png",
+      mimeType: "image/png",
+      status: "rejected",
+      createdAt,
+      merchantName: "Chedraui",
+      purchaseDate: "2026-11-18",
+      totalAmount: 250,
+      currency: "MXN",
+      statusMessage:
+        "Tu comprobante no cumple con las reglas de participación.",
+    },
+  ]);
 });

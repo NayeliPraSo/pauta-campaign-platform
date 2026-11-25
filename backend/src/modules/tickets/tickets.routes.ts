@@ -1,4 +1,3 @@
-
 import {
   Router,
   type RequestHandler,
@@ -22,6 +21,30 @@ export interface TicketsRouterDependencies {
   authenticate?: RequestHandler;
   register?: typeof registerTicket;
   listTickets?: typeof listParticipantTickets;
+}
+
+function getTicketRegistrationMessage(
+  status: string,
+  ocrStatus: "processed" | "pending",
+): string {
+  switch (status) {
+    case "approved":
+      return "Tu comprobante fue registrado y aprobado correctamente.";
+
+    case "rejected":
+      return "Tu comprobante fue registrado, pero no cumple con las reglas de participación.";
+
+    case "requires_review":
+      return "Tu comprobante fue registrado y será revisado.";
+
+    case "processing":
+      return "Tu comprobante se encuentra en procesamiento.";
+
+    default:
+      return ocrStatus === "processed"
+        ? "El comprobante se registró y procesó correctamente. Su validación está pendiente."
+        : "El comprobante se registró correctamente, pero su procesamiento está pendiente. No es necesario volver a subirlo.";
+  }
 }
 
 export function createTicketsRouter(
@@ -97,10 +120,10 @@ export function createTicketsRouter(
 
         res.status(201).json({
           success: true,
-          message:
-            ticket.ocrStatus === "processed"
-              ? "El comprobante se registró y procesó correctamente. Su validación está pendiente."
-              : "El comprobante se registró correctamente, pero su procesamiento está pendiente. No es necesario volver a subirlo.",
+          message: getTicketRegistrationMessage(
+            ticket.status,
+            ticket.ocrStatus,
+          ),
           data: {
             id: ticket.id,
             status: ticket.status,

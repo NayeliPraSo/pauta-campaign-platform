@@ -1,4 +1,3 @@
-
 import { apiFetch } from "./api";
 
 export type TicketStatus =
@@ -8,9 +7,14 @@ export type TicketStatus =
   | "rejected"
   | "requires_review";
 
+export type TicketOcrStatus =
+  | "processed"
+  | "pending";
+
 export interface TicketRegistrado {
   id: string;
   status: TicketStatus;
+  ocrStatus: TicketOcrStatus;
   createdAt: string;
 }
 
@@ -26,6 +30,11 @@ export interface TicketHistorial {
   mimeType: string;
   status: TicketStatus;
   createdAt: string;
+  merchantName: string | null;
+  purchaseDate: string | null;
+  totalAmount: number | null;
+  currency: string | null;
+  statusMessage: string | null;
 }
 
 export interface RespuestaHistorialTickets {

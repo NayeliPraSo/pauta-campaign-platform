@@ -260,3 +260,57 @@ test("POST /api/tickets rechaza una sesión inexistente", async () => {
       "Tu sesión no es válida o ha expirado.",
   });
 });
+const registrationScenarios = [
+  {
+    status: "approved",
+    message:
+      "Tu comprobante fue registrado y aprobado correctamente.",
+  },
+  {
+    status: "rejected",
+    message:
+      "Tu comprobante fue registrado, pero no cumple con las reglas de participación.",
+  },
+  {
+    status: "requires_review",
+    message:
+      "Tu comprobante fue registrado y será revisado.",
+  },
+  {
+    status: "processing",
+    message:
+      "Tu comprobante se encuentra en procesamiento.",
+  },
+] as const;
+
+for (const scenario of registrationScenarios) {
+  test(
+    `POST /api/tickets devuelve 201 con estado ${scenario.status}`,
+    async () => {
+      const result = await sendTicketRequest({
+        authenticate: createMockAuth(),
+
+        register: async () => ({
+          id: "100",
+          participantId: "15",
+          status: scenario.status,
+          createdAt,
+          ocrStatus: "processed",
+        }),
+      });
+
+      assert.equal(result.status, 201);
+
+      assert.deepEqual(result.body, {
+        success: true,
+        message: scenario.message,
+        data: {
+          id: "100",
+          status: scenario.status,
+          ocrStatus: "processed",
+          createdAt: createdAt.toISOString(),
+        },
+      });
+    },
+  );
+}
