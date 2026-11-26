@@ -8,8 +8,9 @@
     "check": "tsc --noEmit",
     "build": "tsc",
     "start": "node dist/server.js",
-    "db:migrate": "tsx src/database/migrate.ts"
-  },
+    "db:migrate": "tsx src/database/migrate.ts",
+    "campaign:init": "tsx src/database/initializeCampaign.ts"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",

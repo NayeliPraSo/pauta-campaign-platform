@@ -1,6 +1,7 @@
 # Reglas obligatorias de desarrollo para asistentes de IA
 
 ## Forma de trabajo
+
 1. Leer `PROJECT_CONTEXT.md`, `DECISIONS.md`, `ARCHITECTURE.md` e `IMPLEMENTATION_PLAN.md` antes de proponer cambios importantes.
 2. Respetar el alcance del MVP. No añadir dependencias, frameworks, patrones, servicios o funcionalidades sin necesidad demostrada.
 3. Trabajar **una etapa y una tarea concreta a la vez**. Antes de codificar, explicar brevemente objetivo, archivos afectados y validación prevista.
@@ -13,6 +14,7 @@
 10. No realizar despliegues, migraciones destructivas ni operaciones con datos reales sin autorización explícita.
 
 ## Arquitectura
+
 - Frontend y panel administrativo: Astro + TypeScript; backend: Express + TypeScript; PostgreSQL.
 - Mantener la lógica de negocio en el backend, no duplicarla en frontend ni en un futuro adaptador WhatsApp.
 - Una campaña por despliegue/base de datos. No implementar multi-tenancy.
@@ -21,6 +23,7 @@
 - Preguntas y respuestas correctas se almacenan en PostgreSQL; no exponer las soluciones al cliente.
 
 ## Seguridad y privacidad
+
 - Validar entradas en el servidor; parametrizar consultas SQL y aplicar límites de tamaño/tipo a archivos.
 - Hash seguro de contraseñas; autenticación y autorización verificadas en API.
 - No registrar ni mostrar secretos, contraseñas, tokens, documentos personales ni imágenes de tickets innecesariamente.
@@ -32,6 +35,7 @@
 - No guardar archivos sensibles en carpetas públicas sin protección.
 
 ## Reglas funcionales que no deben alterarse
+
 - Una partida de trivia por ticket admitido.
 - Trivia hasta fallar o agotar tiempo; preguntas aleatorias no repetidas en la partida.
 - Se permite partida provisional con ticket pendiente; puntos pendientes no cuentan en ranking oficial.
@@ -42,12 +46,38 @@
 - Un solo rol de administrador para MVP; revisión humana por excepción.
 
 ## Pruebas y entregas
+
 - Añadir pruebas proporcionales a los riesgos: validación de tickets, duplicados, puntos provisionales, límites de partida, periodos y desempates.
 - Verificar TypeScript, build y pruebas existentes antes de declarar una etapa terminada.
 - Documentar comandos exactos y variables de entorno requeridas; usar `.env.example` sin valores reales.
 - Mantener migraciones versionadas y reversibles cuando sea viable; nunca modificar producción por suposición.
 
 ## Comunicación
+
 - Responder en español, con pasos concretos y sin explicaciones excesivas.
 - Preferir diffs o cambios localizados; entregar archivos completos solo si el usuario lo pide o facilita la revisión.
 - Señalar claramente qué es decisión confirmada, propuesta o pendiente.
+
+## Documentación y comentarios del código
+
+- Todos los archivos de código nuevos deben incluir comentarios
+  explicativos en español.
+- Cada archivo debe incluir una descripción inicial de su propósito
+  y responsabilidades.
+- Las funciones, métodos, interfaces y tipos deben documentarse
+  mediante JSDoc o el estándar correspondiente al lenguaje.
+- Documentar las reglas de negocio, decisiones técnicas, validaciones,
+  restricciones y medidas de seguridad relevantes.
+- Explicar el propósito de las consultas SQL, transacciones y
+  mecanismos de concurrencia.
+- Documentar los escenarios y comportamientos verificados por
+  las pruebas automatizadas.
+- Explicar los parámetros de configuración y sus efectos sobre
+  el funcionamiento de la plataforma.
+- Los comentarios deben explicar principalmente el propósito y
+  la razón de una implementación, evitando repetir instrucciones
+  evidentes del código.
+- Al modificar archivos existentes, conservar y actualizar los
+  comentarios relacionados con los cambios realizados.
+- Evitar comentarios obsoletos, ambiguos o que describan
+  funcionalidades todavía no implementadas.
